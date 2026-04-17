@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   build: {
     rollupOptions: {
-      external: ['better-sqlite3', '@openai/codex-sdk']
+      external: ['better-sqlite3']
     }
   }
 })
