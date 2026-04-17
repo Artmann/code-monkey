@@ -62,7 +62,7 @@ describe('mergeTaskBranch', () => {
       }
       if (
         key ===
-        `${project.directoryPath}::merge --no-edit ${thread.branchName}`
+        `${project.directoryPath}::merge -m Merge: ${taskTitle} ${thread.branchName}`
       ) {
         return ok('Merge made.')
       }
@@ -88,7 +88,7 @@ describe('mergeTaskBranch', () => {
       'status --porcelain',
       'rev-parse --abbrev-ref HEAD',
       'status --porcelain',
-      `merge --no-edit ${thread.branchName}`,
+      `merge -m Merge: ${taskTitle} ${thread.branchName}`,
       'rev-parse HEAD'
     ])
   })
@@ -120,7 +120,7 @@ describe('mergeTaskBranch', () => {
         return ok('main\n')
       if (
         key ===
-        `${project.directoryPath}::merge --no-edit ${thread.branchName}`
+        `${project.directoryPath}::merge -m Merge: ${taskTitle} ${thread.branchName}`
       )
         return ok('')
       if (key === `${project.directoryPath}::rev-parse HEAD`)
@@ -194,7 +194,7 @@ describe('mergeTaskBranch', () => {
       if (key === `${project.directoryPath}::status --porcelain`) return ok('')
       if (
         key ===
-        `${project.directoryPath}::merge --no-edit ${thread.branchName}`
+        `${project.directoryPath}::merge -m Merge: ${taskTitle} ${thread.branchName}`
       ) {
         return fail('CONFLICT (content): merge conflict in src/x.ts', 1)
       }

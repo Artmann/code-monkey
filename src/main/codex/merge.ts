@@ -82,7 +82,7 @@ export const mergeTaskBranch = async (
   }
 
   const mergeResult = await git(
-    ['merge', '--no-edit', thread.branchName],
+    ['merge', '-m', `Merge: ${taskTitle}`, thread.branchName],
     { cwd: projectCwd }
   )
 
