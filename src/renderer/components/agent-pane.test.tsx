@@ -69,6 +69,44 @@ describe('AgentPane', () => {
     expect(onStartWork).toHaveBeenCalledTimes(1)
   })
 
+  test('enables Start Work when the task is already In Progress but has no thread', () => {
+    renderWithProviders(
+      <AgentPane
+        task={buildTask({ status: 'in_progress' })}
+        thread={null}
+        events={[]}
+        providerConfigured={true}
+        onStartWork={() => undefined}
+        onSendMessage={() => undefined}
+        isStarting={false}
+        isSending={false}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: /start work/i })
+    ).toBeEnabled()
+  })
+
+  test('hides Start Work when the task is already done', () => {
+    renderWithProviders(
+      <AgentPane
+        task={buildTask({ status: 'done' })}
+        thread={null}
+        events={[]}
+        providerConfigured={true}
+        onStartWork={() => undefined}
+        onSendMessage={() => undefined}
+        isStarting={false}
+        isSending={false}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: /start work/i })
+    ).not.toBeInTheDocument()
+  })
+
   test('renders the transcript and a composer once a thread exists', () => {
     const events: ThreadEvent[] = [
       {

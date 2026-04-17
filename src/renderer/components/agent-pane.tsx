@@ -32,8 +32,15 @@ const StartWorkSection = ({
   onStartWork: () => void
   isStarting: boolean
 }) => {
+  if (task.status === 'done') {
+    return (
+      <div className='rounded-md border p-4 text-sm text-muted-foreground'>
+        This task is marked as done.
+      </div>
+    )
+  }
+
   const disabledByProvider = !providerConfigured
-  const disabledByStatus = task.status !== 'todo'
 
   return (
     <div className='flex flex-col gap-2 rounded-md border p-4 text-sm'>
@@ -55,7 +62,7 @@ const StartWorkSection = ({
         <Button
           type='button'
           onClick={onStartWork}
-          disabled={disabledByProvider || disabledByStatus || isStarting}
+          disabled={disabledByProvider || isStarting}
         >
           {isStarting ? 'Starting…' : 'Start Work'}
         </Button>
