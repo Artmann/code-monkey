@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import { asc, eq } from 'drizzle-orm'
+import { asc, desc, eq } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
@@ -33,6 +33,19 @@ export const createThreadsRoutes = (
   const { database, broker, runner } = dependencies
 
   const routes = new Hono()
+
+  routes.get('/tasks/:taskId/threads', (context) => {
+    const taskId = context.req.param('taskId')
+
+    const threads = database
+      .select()
+      .from(schema.threads)
+      .where(eq(schema.threads.taskId, taskId))
+      .orderBy(desc(schema.threads.createdAt))
+      .all()
+
+    return context.json({ threads })
+  })
 
   routes.post('/tasks/:taskId/threads', async (context) => {
     const taskId = context.req.param('taskId')

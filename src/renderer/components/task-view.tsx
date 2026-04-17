@@ -3,14 +3,23 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useProviderSettingsQuery } from '../hooks/use-provider-settings'
 import {
   useUpdateTaskMutation,
   type Task,
   type TaskStatus
 } from '../hooks/use-tasks'
+import {
+  useSendMessageMutation,
+  useStartThreadMutation,
+  useTaskThreadsQuery,
+  useThreadQuery,
+  useThreadStream
+} from '../hooks/use-thread'
 import { getAgentStateMeta } from '../lib/agent-state'
 import { getStatusMeta, statusOrder } from '../lib/task-status'
 import { cn } from '../lib/utils'
+import { AgentPane } from './agent-pane'
 import { Button } from './ui/button'
 import {
   Select,
@@ -19,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue
 } from './ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { Textarea } from './ui/textarea'
 
 interface TaskViewProps {
@@ -129,20 +139,78 @@ export function TaskView({ task }: TaskViewProps) {
         </Button>
       </div>
 
-      <div className='flex flex-1 flex-col gap-6 overflow-y-auto p-6'>
-        <EditableTitle
-          key={`title-${task.id}`}
-          value={task.title}
-          onSave={saveTitle}
-        />
+      <Tabs
+        defaultValue='overview'
+        className='flex flex-1 flex-col gap-0 overflow-hidden'
+      >
+        <div className='border-b px-6 py-2'>
+          <TabsList>
+            <TabsTrigger value='overview'>Overview</TabsTrigger>
+            <TabsTrigger value='agent'>Agent</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <EditableDescription
-          key={`description-${task.id}`}
-          value={task.description ?? ''}
-          onSave={saveDescription}
-        />
-      </div>
+        <TabsContent
+          value='overview'
+          className='flex flex-1 flex-col gap-6 overflow-y-auto p-6'
+        >
+          <EditableTitle
+            key={`title-${task.id}`}
+            value={task.title}
+            onSave={saveTitle}
+          />
+
+          <EditableDescription
+            key={`description-${task.id}`}
+            value={task.description ?? ''}
+            onSave={saveDescription}
+          />
+        </TabsContent>
+
+        <TabsContent
+          value='agent'
+          className='flex flex-1 flex-col overflow-y-auto p-6'
+        >
+          <AgentPaneContainer task={task} />
+        </TabsContent>
+      </Tabs>
     </div>
+  )
+}
+
+function AgentPaneContainer({ task }: { task: Task }) {
+  const providerQuery = useProviderSettingsQuery()
+  const threadsQuery = useTaskThreadsQuery(task.id)
+
+  const latestThread = threadsQuery.data?.at(0) ?? null
+  const threadId = latestThread?.id ?? null
+
+  const threadQuery = useThreadQuery(threadId)
+
+  useThreadStream(threadId)
+
+  const startThread = useStartThreadMutation()
+  const sendMessage = useSendMessageMutation()
+
+  const thread = threadQuery.data?.thread ?? latestThread
+  const events = threadQuery.data?.events ?? []
+
+  return (
+    <AgentPane
+      task={task}
+      thread={thread}
+      events={events}
+      providerConfigured={Boolean(providerQuery.data)}
+      onStartWork={() => {
+        startThread.mutate(task.id)
+      }}
+      onSendMessage={(text) => {
+        if (!threadId) return
+        sendMessage.mutate({ threadId, text })
+      }}
+      isStarting={startThread.isPending}
+      isSending={sendMessage.isPending}
+    />
   )
 }
 

@@ -7,11 +7,15 @@ declare global {
   }
 }
 
-function getBaseUrl(): string {
+export function getApiBaseUrl(): string {
   const port = window.codeMonkey?.apiPort
   invariant(port && port > 0, 'API port not available on window.codeMonkey')
 
   return `http://127.0.0.1:${port}`
+}
+
+function getBaseUrl(): string {
+  return getApiBaseUrl()
 }
 
 export async function apiFetch<T>(

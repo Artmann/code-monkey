@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { resolve } from 'node:path'
@@ -148,6 +149,38 @@ describe('threads routes', () => {
 
     expect(body.thread.id).toEqual(runnerState.threadId)
     expect(runnerState.startCalls).toEqual([task.id])
+  })
+
+  test('GET /tasks/:taskId/threads returns threads for the task, newest first', async () => {
+    const { task } = seedProjectAndTask(database)
+
+    const older = seedThread(database, task.id)
+    const newer = seedThread(database, task.id)
+
+    // Ensure strict createdAt ordering regardless of insert speed.
+    database
+      .update(schema.threads)
+      .set({ createdAt: new Date(1_000) })
+      .where(eq(schema.threads.id, older.id))
+      .run()
+    database
+      .update(schema.threads)
+      .set({ createdAt: new Date(2_000) })
+      .where(eq(schema.threads.id, newer.id))
+      .run()
+
+    const response = await buildRoutes().request(`/tasks/${task.id}/threads`)
+
+    expect(response.status).toEqual(200)
+
+    const body = (await response.json()) as {
+      threads: Array<{ id: string }>
+    }
+
+    expect(body.threads.map((thread) => thread.id)).toEqual([
+      newer.id,
+      older.id
+    ])
   })
 
   test('POST /tasks/:taskId/threads returns 500 when the runner throws', async () => {
