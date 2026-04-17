@@ -1,5 +1,5 @@
 import { useQueries } from '@tanstack/react-query'
-import { Folder, Plus } from 'lucide-react'
+import { Folder, Plus, Settings } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link, useMatch } from 'react-router-dom'
 import type { Project } from '../hooks/use-projects'
@@ -9,6 +9,7 @@ import { cn } from '../lib/utils'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupAction,
   SidebarGroupContent,
@@ -264,6 +265,19 @@ export function AppSidebar({ projects, onAddProject }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to='/settings'>
+                <Settings />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }

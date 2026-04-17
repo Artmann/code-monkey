@@ -26,12 +26,12 @@ export type AgentRunnerCodex = {
 }
 
 export type PersistedEvent = {
-  id: string
-  threadId: string
-  sequence: number
-  type: string
-  payload: unknown
   createdAt: Date
+  id: string
+  payload: unknown
+  sequence: number
+  threadId: string
+  type: string
 }
 
 export type AgentRunnerDatabase = BetterSQLite3Database<typeof schema>
@@ -66,7 +66,7 @@ export type AgentRunner = {
   recoverOrphanedThreads: () => void
 }
 
-const INTERRUPTION_MESSAGE = 'Interrupted by app exit'
+const interruptionMessage = 'Interrupted by app exit'
 
 type SdkEvent = {
   type: string
@@ -88,17 +88,16 @@ const buildInitialPrompt = (task: {
   return `${task.title}\n\n${task.description}`.trim()
 }
 
-const loadTaskWithProject = (
-  database: AgentRunnerDatabase,
-  taskId: string
-) => {
+const loadTaskWithProject = (database: AgentRunnerDatabase, taskId: string) => {
   const task = database
     .select()
     .from(schema.tasks)
     .where(eq(schema.tasks.id, taskId))
     .get()
 
-  if (!task) return null
+  if (!task) {
+    return null
+  }
 
   const project = database
     .select()
@@ -106,7 +105,9 @@ const loadTaskWithProject = (
     .where(eq(schema.projects.id, task.projectId))
     .get()
 
-  if (!project) return null
+  if (!project) {
+    return null
+  }
 
   return { task, project }
 }
@@ -411,13 +412,13 @@ export const createAgentRunner = (
       .all()
 
     for (const thread of orphans) {
-      appendEvent(thread.id, 'error', { message: INTERRUPTION_MESSAGE })
+      appendEvent(thread.id, 'error', { message: interruptionMessage })
 
       database
         .update(schema.threads)
         .set({
           status: 'error',
-          errorMessage: INTERRUPTION_MESSAGE,
+          errorMessage: interruptionMessage,
           lastActivityAt: clock()
         })
         .where(eq(schema.threads.id, thread.id))

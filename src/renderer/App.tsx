@@ -10,6 +10,7 @@ import {
 import { useProjectsQuery } from './hooks/use-projects'
 import { HomeRoute } from './routes/home-route'
 import { ProjectRoute } from './routes/project-route'
+import { SettingsRoute } from './routes/settings-route'
 
 export function App() {
   const projectsQuery = useProjectsQuery()
@@ -44,6 +45,10 @@ export function App() {
           <Route
             path='/projects/:projectId/tasks/:taskId'
             element={<ProjectRoute />}
+          />
+          <Route
+            path='/settings'
+            element={<SettingsRoute />}
           />
         </Routes>
       </SidebarInset>
