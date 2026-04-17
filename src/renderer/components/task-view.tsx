@@ -71,7 +71,7 @@ export function TaskView({ task }: TaskViewProps) {
   }
 
   return (
-    <div className='flex h-full w-full min-w-0 flex-1 flex-col border-l bg-background'>
+    <div className='flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-l bg-background'>
       <div className='flex items-center justify-between gap-4 border-b px-6 py-4'>
         <div className='flex flex-wrap items-center gap-3'>
           <span
