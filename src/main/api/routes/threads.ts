@@ -67,6 +67,20 @@ export const createThreadsRoutes = (
     }
   })
 
+  routes.post('/tasks/:taskId/merge', async (context) => {
+    const taskId = context.req.param('taskId')
+
+    try {
+      const merge = await runner.mergeTask(taskId)
+
+      return context.json({ merge })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      return context.json({ error: message }, 400)
+    }
+  })
+
   routes.get('/threads/:threadId', (context) => {
     const threadId = context.req.param('threadId')
 

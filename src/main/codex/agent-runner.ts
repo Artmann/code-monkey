@@ -1,9 +1,10 @@
-import { and, eq, inArray, max } from 'drizzle-orm'
+import { and, desc, eq, inArray, max } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import invariant from 'tiny-invariant'
 
 import * as schema from '../database/schema'
 import type { EventBroker } from './event-broker'
+import type { MergeTaskInput, MergeTaskResult } from './merge'
 import type { ProviderSettings } from './provider-settings'
 import type { CreatedWorktree } from './worktree'
 
@@ -59,6 +60,7 @@ export type AgentRunnerDependencies = {
     create: (args: AgentRunnerWorktreeInput) => Promise<CreatedWorktree>
     remove: (args: AgentRunnerWorktreeRemoveInput) => Promise<void>
   }
+  merge: (args: MergeTaskInput) => Promise<MergeTaskResult>
   now?: () => Date
 }
 
@@ -68,6 +70,7 @@ export type AgentRunner = {
   start: (taskId: string) => Promise<StartResult>
   continueThread: (threadId: string, text: string) => Promise<void>
   recoverOrphanedThreads: () => void
+  mergeTask: (taskId: string) => Promise<MergeTaskResult>
 }
 
 const interruptionMessage = 'Interrupted by app exit'
@@ -132,8 +135,15 @@ const nextSequenceFor = (
 export const createAgentRunner = (
   dependencies: AgentRunnerDependencies
 ): AgentRunner => {
-  const { database, broker, createCodex, providerSettings, worktree, now } =
-    dependencies
+  const {
+    database,
+    broker,
+    createCodex,
+    providerSettings,
+    worktree,
+    merge,
+    now
+  } = dependencies
 
   const clock = now ?? (() => new Date())
 
@@ -447,5 +457,63 @@ export const createAgentRunner = (
     }
   }
 
-  return { start, continueThread, recoverOrphanedThreads }
+  const mergeTask = async (taskId: string): Promise<MergeTaskResult> => {
+    const loaded = loadTaskWithProject(database, taskId)
+
+    if (!loaded) {
+      throw new Error(`Task not found: ${taskId}`)
+    }
+
+    const { task, project } = loaded
+
+    const [latestThread] = database
+      .select()
+      .from(schema.threads)
+      .where(eq(schema.threads.taskId, task.id))
+      .orderBy(desc(schema.threads.createdAt))
+      .limit(1)
+      .all()
+
+    if (!latestThread) {
+      throw new Error(
+        `Task has no thread to merge: ${taskId}. Start work on the task before merging.`
+      )
+    }
+
+    if (
+      latestThread.status === 'running' ||
+      latestThread.status === 'starting'
+    ) {
+      throw new Error(
+        `Thread is still running. Wait for the agent to finish before merging.`
+      )
+    }
+
+    const result = await merge({
+      project: { directoryPath: project.directoryPath },
+      thread: {
+        worktreePath: latestThread.worktreePath,
+        branchName: latestThread.branchName,
+        baseBranch: latestThread.baseBranch
+      },
+      taskTitle: task.title
+    })
+
+    appendEvent(latestThread.id, 'merge.completed', {
+      mergeCommitSha: result.mergeCommitSha,
+      autoCommitted: result.autoCommitted,
+      baseBranch: latestThread.baseBranch,
+      branchName: latestThread.branchName
+    })
+
+    database
+      .update(schema.tasks)
+      .set({ status: 'done', agentState: 'idle', updatedAt: clock() })
+      .where(eq(schema.tasks.id, task.id))
+      .run()
+
+    return result
+  }
+
+  return { start, continueThread, recoverOrphanedThreads, mergeTask }
 }

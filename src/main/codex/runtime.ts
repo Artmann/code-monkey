@@ -12,6 +12,7 @@ import {
   createEventBroker,
   type EventBroker
 } from './event-broker'
+import { mergeTaskBranch } from './merge'
 import {
   getProviderSettings,
   type SafeStorageLike
@@ -52,7 +53,8 @@ export const createCodexRuntime = (
     worktree: {
       create: async (args) => createWorktree(worktreeDeps, args),
       remove: async (args) => removeWorktree(worktreeDeps, args)
-    }
+    },
+    merge: async (args) => mergeTaskBranch({ git }, args)
   })
 
   return { broker, runner }

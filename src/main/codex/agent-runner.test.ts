@@ -15,6 +15,7 @@ import {
   type PersistedEvent
 } from './agent-runner'
 import { createEventBroker, type EventBroker } from './event-broker'
+import type { MergeTaskInput, MergeTaskResult } from './merge'
 import type { ProviderSettings } from './provider-settings'
 import type { CreatedWorktree } from './worktree'
 
@@ -235,6 +236,8 @@ type Harness = {
     project: { id: string; directoryPath: string }
     task: { id: string }
   }>
+  mergeCalls: MergeTaskInput[]
+  mergeResult: { current: MergeTaskResult | Error }
 }
 
 const createHarness = (): Harness => {
@@ -245,6 +248,10 @@ const createHarness = (): Harness => {
     current: { mode: 'cli', binaryPath: null }
   }
   const creations: Harness['worktreeCreations'] = []
+  const mergeCalls: MergeTaskInput[] = []
+  const mergeResult: { current: MergeTaskResult | Error } = {
+    current: { mergeCommitSha: 'deadbeef', autoCommitted: false }
+  }
 
   const defaultCreate = async (args: {
     project: { id: string; directoryPath: string }
@@ -267,6 +274,15 @@ const createHarness = (): Harness => {
         return defaultCreate(args)
       },
       remove: async () => undefined
+    },
+    merge: async (args) => {
+      mergeCalls.push(args)
+
+      if (mergeResult.current instanceof Error) {
+        throw mergeResult.current
+      }
+
+      return mergeResult.current
     }
   })
 
@@ -276,6 +292,8 @@ const createHarness = (): Harness => {
     broker,
     runner,
     providerSettings,
+    mergeCalls,
+    mergeResult,
     worktreeCreations: creations
   }
 }
@@ -614,6 +632,107 @@ describe('createAgentRunner', () => {
 
       expect(runningEvents.at(-1)?.type).toEqual('error')
       expect(startingEvents.at(-1)?.type).toEqual('error')
+    })
+  })
+
+  describe('mergeTask', () => {
+    test('merges the latest thread and moves the task to done', async () => {
+      const harness = createHarness()
+      const { project, task } = seedProjectAndTask(harness.database)
+
+      const { threadId } = await harness.runner.start(task.id)
+
+      await waitFor(() => harness.threads.length === 1)
+
+      const [fakeThread] = harness.threads
+
+      invariant(fakeThread, 'fake thread missing')
+      fakeThread.emit({ type: 'thread.started', thread_id: 'c1' })
+      fakeThread.emit({ type: 'turn.completed' })
+
+      await waitFor(
+        () => getThreadRow(harness.database, threadId)?.status === 'idle'
+      )
+
+      const result = await harness.runner.mergeTask(task.id)
+
+      expect(result.mergeCommitSha).toEqual('deadbeef')
+      expect(harness.mergeCalls).toHaveLength(1)
+      expect(harness.mergeCalls[0]?.project.directoryPath).toEqual(
+        project.directoryPath
+      )
+      expect(harness.mergeCalls[0]?.thread.branchName).toEqual(
+        `code-monkey/${task.id}`
+      )
+      expect(harness.mergeCalls[0]?.taskTitle).toEqual(task.title)
+
+      const updatedTask = getTaskRow(harness.database, task.id)
+
+      expect(updatedTask?.status).toEqual('done')
+      expect(updatedTask?.agentState).toEqual('idle')
+
+      const events = getThreadEvents(harness.database, threadId)
+
+      expect(events.at(-1)?.type).toEqual('merge.completed')
+    })
+
+    test('throws when the task has no thread to merge', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      await expect(harness.runner.mergeTask(task.id)).rejects.toThrow(
+        /no thread/i
+      )
+    })
+
+    test('throws when the task does not exist', async () => {
+      const harness = createHarness()
+
+      await expect(
+        harness.runner.mergeTask('00000000-0000-0000-0000-000000000000')
+      ).rejects.toThrow(/task.*not found/i)
+    })
+
+    test('refuses to merge while a thread is still running', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      await harness.runner.start(task.id)
+
+      await expect(harness.runner.mergeTask(task.id)).rejects.toThrow(
+        /still running|in progress/i
+      )
+
+      expect(harness.mergeCalls).toHaveLength(0)
+    })
+
+    test('surfaces merge errors and leaves the task state unchanged', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      const { threadId } = await harness.runner.start(task.id)
+
+      await waitFor(() => harness.threads.length === 1)
+
+      const [fakeThread] = harness.threads
+
+      invariant(fakeThread, 'fake thread missing')
+      fakeThread.emit({ type: 'thread.started', thread_id: 'c1' })
+      fakeThread.emit({ type: 'turn.completed' })
+
+      await waitFor(
+        () => getThreadRow(harness.database, threadId)?.status === 'idle'
+      )
+
+      harness.mergeResult.current = new Error('merge conflict in src/x.ts')
+
+      await expect(harness.runner.mergeTask(task.id)).rejects.toThrow(
+        /merge conflict/i
+      )
+
+      const updatedTask = getTaskRow(harness.database, task.id)
+
+      expect(updatedTask?.status).toEqual('in_progress')
     })
   })
 })

@@ -177,4 +177,74 @@ describe('AgentPane', () => {
       screen.getByText(/interrupted by app exit/i)
     ).toBeInTheDocument()
   })
+
+  test('shows Merge to Main when the thread is idle and the task is not done', async () => {
+    const onMerge = vi.fn()
+    const user = userEvent.setup()
+
+    renderWithProviders(
+      <AgentPane
+        task={buildTask({ status: 'in_progress' })}
+        thread={buildThread({ status: 'idle' })}
+        events={[]}
+        providerConfigured={true}
+        onStartWork={() => undefined}
+        onSendMessage={() => undefined}
+        onMerge={onMerge}
+        isStarting={false}
+        isSending={false}
+        isMerging={false}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: /merge to main/i })
+
+    expect(button).toBeEnabled()
+
+    await user.click(button)
+
+    expect(onMerge).toHaveBeenCalledTimes(1)
+  })
+
+  test('disables Merge to Main while the thread is running', () => {
+    renderWithProviders(
+      <AgentPane
+        task={buildTask({ status: 'in_progress' })}
+        thread={buildThread({ status: 'running' })}
+        events={[]}
+        providerConfigured={true}
+        onStartWork={() => undefined}
+        onSendMessage={() => undefined}
+        onMerge={() => undefined}
+        isStarting={false}
+        isSending={false}
+        isMerging={false}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: /merge to main/i })
+    ).toBeDisabled()
+  })
+
+  test('hides Merge to Main once the task is done', () => {
+    renderWithProviders(
+      <AgentPane
+        task={buildTask({ status: 'done' })}
+        thread={buildThread({ status: 'idle' })}
+        events={[]}
+        providerConfigured={true}
+        onStartWork={() => undefined}
+        onSendMessage={() => undefined}
+        onMerge={() => undefined}
+        isStarting={false}
+        isSending={false}
+        isMerging={false}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: /merge to main/i })
+    ).not.toBeInTheDocument()
+  })
 })

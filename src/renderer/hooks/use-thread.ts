@@ -192,3 +192,27 @@ export function useSendMessageMutation() {
     }
   })
 }
+
+type MergeResponse = {
+  merge: { mergeCommitSha: string | null; autoCommitted: boolean }
+}
+
+export function useMergeTaskMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      const data = await apiFetch<MergeResponse>(`/tasks/${taskId}/merge`, {
+        method: 'POST'
+      })
+
+      return { taskId, ...data.merge }
+    },
+    onSuccess: ({ taskId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
+      void queryClient.invalidateQueries({
+        queryKey: taskThreadsKey(taskId)
+      })
+    }
+  })
+}

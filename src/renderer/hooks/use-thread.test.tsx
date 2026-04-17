@@ -10,6 +10,7 @@ import {
 } from '../test-utils'
 import {
   threadKey,
+  useMergeTaskMutation,
   useSendMessageMutation,
   useStartThreadMutation,
   useTaskThreadsQuery,
@@ -374,5 +375,48 @@ describe('useSendMessageMutation', () => {
     expect(url).toContain('/threads/thread-1/messages')
     expect(init?.method).toEqual('POST')
     expect(init?.body).toEqual(JSON.stringify({ text: 'keep going' }))
+  })
+})
+
+describe('useMergeTaskMutation', () => {
+  beforeEach(() => {
+    mockApiBridge()
+  })
+
+  afterEach(() => {
+    restoreApiBridge()
+    vi.unstubAllGlobals()
+  })
+
+  test('POSTs to /tasks/:taskId/merge', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          merge: { mergeCommitSha: 'deadbeef', autoCommitted: false }
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    )
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = createClient()
+    const { result } = renderHook(() => useMergeTaskMutation(), {
+      wrapper: wrapper(client)
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync('task-1')
+    })
+
+    const [call] = fetchMock.mock.calls
+    const url = call?.at(0) as string | undefined
+    const init = call?.at(1) as RequestInit | undefined
+
+    expect(url).toContain('/tasks/task-1/merge')
+    expect(init?.method).toEqual('POST')
   })
 })

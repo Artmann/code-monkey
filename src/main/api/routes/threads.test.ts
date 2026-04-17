@@ -98,7 +98,9 @@ const seedEvent = (
 type FakeRunnerState = {
   startCalls: string[]
   continueCalls: Array<{ threadId: string; text: string }>
+  mergeCalls: string[]
   threadId: string | null
+  mergeError: Error | null
 }
 
 const createFakeRunner = (
@@ -117,7 +119,20 @@ const createFakeRunner = (
   continueThread: async (threadId, text) => {
     state.continueCalls.push({ threadId, text })
   },
-  recoverOrphanedThreads: () => undefined
+  recoverOrphanedThreads: () => undefined,
+  mergeTask: async (taskId) => {
+    state.mergeCalls.push(taskId)
+
+    if (state.mergeError) throw state.mergeError
+
+    database
+      .update(schema.tasks)
+      .set({ status: 'done', agentState: 'idle' })
+      .where(eq(schema.tasks.id, taskId))
+      .run()
+
+    return { mergeCommitSha: 'deadbeef', autoCommitted: false }
+  }
 })
 
 describe('threads routes', () => {
@@ -129,7 +144,13 @@ describe('threads routes', () => {
   beforeEach(() => {
     database = createTestDatabase()
     broker = createEventBroker<PersistedEvent>()
-    runnerState = { startCalls: [], continueCalls: [], threadId: null }
+    runnerState = {
+      startCalls: [],
+      continueCalls: [],
+      mergeCalls: [],
+      threadId: null,
+      mergeError: null
+    }
     runner = createFakeRunner(database, runnerState)
   })
 
@@ -321,5 +342,40 @@ describe('threads routes', () => {
     expect(text).toContain('"sequence":7')
 
     await reader.cancel()
+  })
+
+  test('POST /tasks/:taskId/merge calls mergeTask and returns the result', async () => {
+    const { task } = seedProjectAndTask(database)
+
+    seedThread(database, task.id)
+
+    const response = await buildRoutes().request(`/tasks/${task.id}/merge`, {
+      method: 'POST'
+    })
+
+    expect(response.status).toEqual(200)
+
+    const body = (await response.json()) as {
+      merge: { mergeCommitSha: string | null; autoCommitted: boolean }
+    }
+
+    expect(body.merge.mergeCommitSha).toEqual('deadbeef')
+    expect(runnerState.mergeCalls).toEqual([task.id])
+  })
+
+  test('POST /tasks/:taskId/merge surfaces runner errors as 400', async () => {
+    const { task } = seedProjectAndTask(database)
+
+    runnerState.mergeError = new Error('merge conflict in src/x.ts')
+
+    const response = await buildRoutes().request(`/tasks/${task.id}/merge`, {
+      method: 'POST'
+    })
+
+    expect(response.status).toEqual(400)
+
+    const body = (await response.json()) as { error: string }
+
+    expect(body.error).toMatch(/merge conflict/i)
   })
 })

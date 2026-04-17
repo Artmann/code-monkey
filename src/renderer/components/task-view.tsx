@@ -10,6 +10,7 @@ import {
   type TaskStatus
 } from '../hooks/use-tasks'
 import {
+  useMergeTaskMutation,
   useSendMessageMutation,
   useStartThreadMutation,
   useTaskThreadsQuery,
@@ -191,9 +192,12 @@ function AgentPaneContainer({ task }: { task: Task }) {
 
   const startThread = useStartThreadMutation()
   const sendMessage = useSendMessageMutation()
+  const mergeTask = useMergeTaskMutation()
 
   const thread = threadQuery.data?.thread ?? latestThread
   const events = threadQuery.data?.events ?? []
+  const mergeError =
+    mergeTask.error instanceof Error ? mergeTask.error.message : null
 
   return (
     <AgentPane
@@ -208,8 +212,13 @@ function AgentPaneContainer({ task }: { task: Task }) {
         if (!threadId) return
         sendMessage.mutate({ threadId, text })
       }}
+      onMerge={() => {
+        mergeTask.mutate(task.id)
+      }}
       isStarting={startThread.isPending}
       isSending={sendMessage.isPending}
+      isMerging={mergeTask.isPending}
+      mergeError={mergeError}
     />
   )
 }

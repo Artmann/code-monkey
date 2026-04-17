@@ -14,8 +14,11 @@ export type AgentPaneProps = {
   providerConfigured: boolean
   onStartWork: () => void
   onSendMessage: (text: string) => void
+  onMerge?: () => void
   isStarting: boolean
   isSending: boolean
+  isMerging?: boolean
+  mergeError?: string | null
 }
 
 const StartWorkSection = ({
@@ -111,8 +114,11 @@ export function AgentPane({
   providerConfigured,
   onStartWork,
   onSendMessage,
+  onMerge,
   isStarting,
-  isSending
+  isSending,
+  isMerging = false,
+  mergeError = null
 }: AgentPaneProps) {
   if (!thread) {
     return (
@@ -125,10 +131,10 @@ export function AgentPane({
     )
   }
 
-  const composerDisabled =
-    thread.status === 'running' ||
-    thread.status === 'starting' ||
-    isSending
+  const threadBusy =
+    thread.status === 'running' || thread.status === 'starting'
+  const composerDisabled = threadBusy || isSending
+  const showMergeButton = onMerge && task.status !== 'done'
 
   return (
     <div className='flex flex-col gap-3'>
@@ -147,6 +153,33 @@ export function AgentPane({
         disabled={composerDisabled}
         onSend={onSendMessage}
       />
+
+      {showMergeButton && (
+        <div className='flex flex-col gap-2 border-t pt-3'>
+          {mergeError && (
+            <p
+              role='alert'
+              className='rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive'
+            >
+              {mergeError}
+            </p>
+          )}
+          <div>
+            <Button
+              type='button'
+              onClick={onMerge}
+              disabled={threadBusy || isMerging}
+            >
+              {isMerging ? 'Merging…' : 'Merge to Main'}
+            </Button>
+            <span className='ml-2 text-xs text-muted-foreground'>
+              Merges <code className='font-mono'>{thread.branchName}</code>{' '}
+              into <code className='font-mono'>{thread.baseBranch}</code> and
+              marks the task as Done.
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
