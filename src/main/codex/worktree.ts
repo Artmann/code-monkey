@@ -39,7 +39,7 @@ export type RemoveWorktreeInput = {
   deleteBranch?: boolean
 }
 
-const ORIGIN_HEAD_PREFIX = 'refs/remotes/origin/'
+const originHeadPrefix = 'refs/remotes/origin/'
 
 const shortId = (taskId: string) => taskId.slice(0, 8)
 
@@ -85,21 +85,25 @@ const resolveBaseBranch = async (
   git: GitExecutor,
   cwd: string
 ): Promise<string> => {
-  const originHead = await git(
-    ['symbolic-ref', 'refs/remotes/origin/HEAD'],
-    { cwd }
-  )
+  const originHead = await git(['symbolic-ref', 'refs/remotes/origin/HEAD'], {
+    cwd
+  })
 
   if (originHead.exitCode === 0) {
     const trimmed = originHead.stdout.trim()
 
-    if (trimmed.startsWith(ORIGIN_HEAD_PREFIX)) {
-      return trimmed.slice(ORIGIN_HEAD_PREFIX.length)
+    if (trimmed.startsWith(originHeadPrefix)) {
+      return trimmed.slice(originHeadPrefix.length)
     }
   }
 
-  if (await branchExists(git, cwd, 'main')) return 'main'
-  if (await branchExists(git, cwd, 'master')) return 'master'
+  if (await branchExists(git, cwd, 'main')) {
+    return 'main'
+  }
+
+  if (await branchExists(git, cwd, 'master')) {
+    return 'master'
+  }
 
   throw new Error(
     `Could not determine a base branch (tried origin/HEAD, main, master) in ${cwd}.`
@@ -178,7 +182,8 @@ export const removeWorktree = async (
   }
 }
 
-export const createNodeGitExecutor = (): GitExecutor =>
+export const createNodeGitExecutor =
+  (): GitExecutor =>
   async (gitArgs, { cwd }) => {
     try {
       const { stdout, stderr } = await execFileAsync('git', [...gitArgs], {

@@ -1,7 +1,9 @@
-import { BrowserWindow, app, screen } from 'electron'
+import { BrowserWindow, app, safeStorage, screen } from 'electron'
 import started from 'electron-squirrel-startup'
 import path from 'node:path'
 import { startApiServer } from './api/server'
+import { createCodexRuntime } from './codex/runtime'
+import { getDatabase } from './database/client'
 import { runMigrations } from './database/migrate'
 import { registerDialogHandlers } from './ipc/dialog'
 
@@ -46,7 +48,17 @@ async function createMainWindow(): Promise<void> {
 async function bootstrap(): Promise<void> {
   runMigrations()
 
-  apiPort = await startApiServer()
+  const database = getDatabase()
+  const runtime = createCodexRuntime({ database, safeStorage })
+
+  runtime.runner.recoverOrphanedThreads()
+
+  apiPort = await startApiServer({
+    database,
+    safeStorage,
+    broker: runtime.broker,
+    runner: runtime.runner
+  })
   console.log(`[code-monkey] API listening on http://127.0.0.1:${apiPort}`)
 
   registerDialogHandlers()
