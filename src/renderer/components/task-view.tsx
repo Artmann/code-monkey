@@ -170,7 +170,7 @@ export function TaskView({ task }: TaskViewProps) {
 
         <TabsContent
           value='agent'
-          className='flex flex-1 flex-col overflow-y-auto p-6'
+          className='flex min-h-0 flex-1 flex-col p-6'
         >
           <AgentPaneContainer task={task} />
         </TabsContent>
