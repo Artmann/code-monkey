@@ -33,24 +33,26 @@ export function App() {
           </span>
         </header>
 
-        <Routes>
-          <Route
-            path='/'
-            element={<HomeRoute onCreateProject={() => setDialogOpen(true)} />}
-          />
-          <Route
-            path='/projects/:projectId'
-            element={<ProjectRoute />}
-          />
-          <Route
-            path='/projects/:projectId/tasks/:taskId'
-            element={<ProjectRoute />}
-          />
-          <Route
-            path='/settings'
-            element={<SettingsRoute />}
-          />
-        </Routes>
+        <div className='min-h-0 flex-1 overflow-hidden'>
+          <Routes>
+            <Route
+              path='/'
+              element={<HomeRoute onCreateProject={() => setDialogOpen(true)} />}
+            />
+            <Route
+              path='/projects/:projectId'
+              element={<ProjectRoute />}
+            />
+            <Route
+              path='/projects/:projectId/tasks/:taskId'
+              element={<ProjectRoute />}
+            />
+            <Route
+              path='/settings'
+              element={<SettingsRoute />}
+            />
+          </Routes>
+        </div>
       </SidebarInset>
 
       <NewProjectDialog

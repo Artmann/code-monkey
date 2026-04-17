@@ -58,7 +58,7 @@ export function ProjectView({ project }: ProjectViewProps) {
   }
 
   return (
-    <div className='flex flex-1 flex-col overflow-hidden'>
+    <div className='flex h-full min-h-0 flex-col overflow-hidden'>
       <div className='flex items-center justify-between gap-4 border-b px-6 py-5'>
         <div className='flex min-w-0 flex-col gap-1'>
           <h1 className='font-display text-2xl font-bold tracking-tight'>
