@@ -140,6 +140,7 @@ export function AgentPane({
 
   const threadBusy =
     thread.status === 'running' || thread.status === 'starting'
+  const agentWorking = task.agentState === 'working'
   const composerDisabled = threadBusy || isSending
   const showMergeButton = onMerge && task.status !== 'done'
 
@@ -177,7 +178,7 @@ export function AgentPane({
             <Button
               type='button'
               onClick={onMerge}
-              disabled={threadBusy || isMerging}
+              disabled={threadBusy || agentWorking || isMerging}
             >
               {isMerging ? 'Merging…' : 'Merge to Main'}
             </Button>

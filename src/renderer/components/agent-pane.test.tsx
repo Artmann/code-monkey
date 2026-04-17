@@ -244,6 +244,27 @@ describe('AgentPane', () => {
     expect(onMerge).toHaveBeenCalledTimes(1)
   })
 
+  test('disables Merge to Main while the task agent state is working', () => {
+    renderWithProviders(
+      <AgentPane
+        task={buildTask({ status: 'in_progress', agentState: 'working' })}
+        thread={buildThread({ status: 'idle' })}
+        events={[]}
+        providerConfigured={true}
+        onStartWork={() => undefined}
+        onSendMessage={() => undefined}
+        onMerge={() => undefined}
+        isStarting={false}
+        isSending={false}
+        isMerging={false}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: /merge to main/i })
+    ).toBeDisabled()
+  })
+
   test('disables Merge to Main while the thread is running', () => {
     renderWithProviders(
       <AgentPane
