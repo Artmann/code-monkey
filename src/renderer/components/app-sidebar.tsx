@@ -164,7 +164,7 @@ function AttentionSection({
 function SidebarLogo() {
   return (
     <div className='flex items-center gap-2 px-2 py-2'>
-      <div className='flex size-8 items-center justify-center rounded-md bg-banana/20 ring-1 ring-banana/30'>
+      <div className='flex size-8 items-center justify-center rounded-md bg-banana/20'>
         <span className='text-xl leading-none select-none'>🦍</span>
       </div>
       <div className='flex flex-col leading-tight'>
