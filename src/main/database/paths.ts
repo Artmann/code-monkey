@@ -13,3 +13,11 @@ export function getAppDataDirectory(): string {
 export function getDatabasePath(): string {
   return join(getAppDataDirectory(), 'code-monkey.db')
 }
+
+export function getWorktreesDirectory(): string {
+  const directory = join(getAppDataDirectory(), 'worktrees')
+
+  mkdirSync(directory, { recursive: true })
+
+  return directory
+}

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
-import { mkdir, stat } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path/posix'
+import { mkdir, stat, symlink } from 'node:fs/promises'
+import { basename, join } from 'node:path/posix'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -18,8 +18,10 @@ export type GitExecutor = (
 
 export type WorktreeDependencies = {
   git: GitExecutor
+  worktreesRoot: string
   ensureDir: (path: string) => Promise<void>
   pathExists: (path: string) => Promise<boolean>
+  linkNodeModules: (from: string, to: string) => Promise<void>
 }
 
 export type CreateWorktreeInput = {
@@ -41,19 +43,17 @@ export type RemoveWorktreeInput = {
 
 const originHeadPrefix = 'refs/remotes/origin/'
 
-const shortId = (taskId: string) => taskId.slice(0, 8)
-
-const worktreeParent = (projectDirectory: string) => {
-  const parent = dirname(projectDirectory)
-  const name = basename(projectDirectory)
-
-  return join(parent, `${name}.worktrees`)
-}
-
-const worktreePathFor = (projectDirectory: string, taskId: string) =>
-  join(worktreeParent(projectDirectory), `t_${shortId(taskId)}`)
-
 const branchNameFor = (taskId: string) => `code-monkey/${taskId}`
+
+const worktreeDirName = (branch: string) => branch.replaceAll('/', '-')
+
+const repoDirName = (directoryPath: string) => basename(directoryPath)
+
+const worktreePathFor = (
+  worktreesRoot: string,
+  directoryPath: string,
+  branch: string
+) => join(worktreesRoot, repoDirName(directoryPath), worktreeDirName(branch))
 
 const ensureInsideGitRepo = async (
   git: GitExecutor,
@@ -114,14 +114,16 @@ export const createWorktree = async (
   dependencies: WorktreeDependencies,
   { project, task }: CreateWorktreeInput
 ): Promise<CreatedWorktree> => {
-  const { git, ensureDir, pathExists } = dependencies
+  const { git, worktreesRoot, ensureDir, pathExists, linkNodeModules } =
+    dependencies
   const cwd = project.directoryPath
 
   await ensureInsideGitRepo(git, cwd)
 
   const baseBranch = await resolveBaseBranch(git, cwd)
   const branch = branchNameFor(task.id)
-  const path = worktreePathFor(cwd, task.id)
+  const path = worktreePathFor(worktreesRoot, cwd, branch)
+  const repoDir = join(worktreesRoot, repoDirName(cwd))
 
   if (await branchExists(git, cwd, branch)) {
     throw new Error(
@@ -135,7 +137,7 @@ export const createWorktree = async (
     )
   }
 
-  await ensureDir(worktreeParent(cwd))
+  await ensureDir(repoDir)
 
   const addResult = await git(
     ['worktree', 'add', '-b', branch, path, baseBranch],
@@ -146,6 +148,12 @@ export const createWorktree = async (
     throw new Error(
       `git worktree add failed: ${addResult.stderr.trim() || addResult.stdout.trim()}`
     )
+  }
+
+  const sourceNodeModules = join(cwd, 'node_modules')
+
+  if (await pathExists(sourceNodeModules)) {
+    await linkNodeModules(sourceNodeModules, join(path, 'node_modules'))
   }
 
   return { path, branch, baseBranch }
@@ -209,7 +217,7 @@ export const createNodeGitExecutor =
 
 export const createNodeFsDependencies = (): Pick<
   WorktreeDependencies,
-  'ensureDir' | 'pathExists'
+  'ensureDir' | 'pathExists' | 'linkNodeModules'
 > => ({
   ensureDir: async (path) => {
     await mkdir(path, { recursive: true })
@@ -222,5 +230,10 @@ export const createNodeFsDependencies = (): Pick<
     } catch {
       return false
     }
+  },
+  linkNodeModules: async (from, to) => {
+    const type = process.platform === 'win32' ? 'junction' : undefined
+
+    await symlink(from, to, type)
   }
 })

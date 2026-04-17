@@ -1,5 +1,6 @@
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 
+import { getWorktreesDirectory } from '../database/paths'
 import * as schema from '../database/schema'
 import {
   createAgentRunner,
@@ -40,6 +41,8 @@ export const createCodexRuntime = (
   const broker = createEventBroker<PersistedEvent>()
   const git = createNodeGitExecutor()
   const fs = createNodeFsDependencies()
+  const worktreesRoot = getWorktreesDirectory()
+  const worktreeDeps = { git, worktreesRoot, ...fs }
 
   const runner = createAgentRunner({
     database,
@@ -47,9 +50,8 @@ export const createCodexRuntime = (
     providerSettings: () => getProviderSettings({ database, safeStorage }),
     createCodex,
     worktree: {
-      create: async (args) =>
-        createWorktree({ git, ...fs }, args),
-      remove: async (args) => removeWorktree({ git, ...fs }, args)
+      create: async (args) => createWorktree(worktreeDeps, args),
+      remove: async (args) => removeWorktree(worktreeDeps, args)
     }
   })
 

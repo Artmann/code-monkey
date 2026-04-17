@@ -38,23 +38,34 @@ const createFakeGit = (responder: Responder) => {
   return { git, calls }
 }
 
+const worktreesRoot = '/home/u/.code-monkey/worktrees'
+const taskId = 'e0b97cd3-1234-5678-9abc-def012345678'
+const expectedBranch = `code-monkey/${taskId}`
+const expectedDirName = `code-monkey-${taskId}`
+const expectedPath = `/home/u/.code-monkey/worktrees/my-app/${expectedDirName}`
+
 const createFakeFs = () => {
   const ensured: string[] = []
   const existing = new Set<string>()
+  const links: Array<{ from: string; to: string }> = []
 
-  const deps: Pick<WorktreeDependencies, 'ensureDir' | 'pathExists'> = {
+  const deps: Omit<WorktreeDependencies, 'git'> = {
+    worktreesRoot,
     ensureDir: async (path) => {
       ensured.push(path)
       existing.add(path)
     },
-    pathExists: async (path) => existing.has(path)
+    pathExists: async (path) => existing.has(path),
+    linkNodeModules: async (from, to) => {
+      links.push({ from, to })
+    }
   }
 
-  return { deps, ensured, existing }
+  return { deps, ensured, existing, links }
 }
 
 const project = { id: 'proj-1', directoryPath: '/home/u/Code/my-app' }
-const task = { id: 'e0b97cd3-1234-5678-9abc-def012345678' }
+const task = { id: taskId }
 
 describe('createWorktree', () => {
   test('resolves base branch via origin/HEAD and runs the right git commands', async () => {
@@ -64,10 +75,7 @@ describe('createWorktree', () => {
       if (joined === 'rev-parse --is-inside-work-tree') return ok('true\n')
       if (joined === 'symbolic-ref refs/remotes/origin/HEAD')
         return ok('refs/remotes/origin/main\n')
-      if (joined.startsWith('show-ref --verify --quiet')) {
-        // branch does not exist
-        return fail('', 1)
-      }
+      if (joined.startsWith('show-ref --verify --quiet')) return fail('', 1)
       if (joined.startsWith('worktree add')) return ok()
 
       throw new Error(`unexpected git call: ${joined}`)
@@ -80,23 +88,68 @@ describe('createWorktree', () => {
     )
 
     expect(result).toEqual({
-      path: '/home/u/Code/my-app.worktrees/t_e0b97cd3',
-      branch: 'code-monkey/e0b97cd3-1234-5678-9abc-def012345678',
+      path: expectedPath,
+      branch: expectedBranch,
       baseBranch: 'main'
     })
 
-    expect(fs.ensured).toEqual(['/home/u/Code/my-app.worktrees'])
+    expect(fs.ensured).toEqual(['/home/u/.code-monkey/worktrees/my-app'])
 
     expect(calls.map((call) => call.args.join(' '))).toEqual([
       'rev-parse --is-inside-work-tree',
       'symbolic-ref refs/remotes/origin/HEAD',
-      'show-ref --verify --quiet refs/heads/code-monkey/e0b97cd3-1234-5678-9abc-def012345678',
-      'worktree add -b code-monkey/e0b97cd3-1234-5678-9abc-def012345678 /home/u/Code/my-app.worktrees/t_e0b97cd3 main'
+      `show-ref --verify --quiet refs/heads/${expectedBranch}`,
+      `worktree add -b ${expectedBranch} ${expectedPath} main`
     ])
 
     expect(calls.every((call) => call.cwd === project.directoryPath)).toBe(
       true
     )
+  })
+
+  test('links the project node_modules into the worktree when present', async () => {
+    const { git } = createFakeGit((call) => {
+      const joined = call.args.join(' ')
+
+      if (joined === 'rev-parse --is-inside-work-tree') return ok('true\n')
+      if (joined === 'symbolic-ref refs/remotes/origin/HEAD')
+        return ok('refs/remotes/origin/main\n')
+      if (joined.startsWith('show-ref --verify --quiet')) return fail('', 1)
+      if (joined.startsWith('worktree add')) return ok()
+
+      throw new Error(`unexpected git call: ${joined}`)
+    })
+    const fs = createFakeFs()
+
+    fs.existing.add('/home/u/Code/my-app/node_modules')
+
+    await createWorktree({ git, ...fs.deps }, { project, task })
+
+    expect(fs.links).toEqual([
+      {
+        from: '/home/u/Code/my-app/node_modules',
+        to: `${expectedPath}/node_modules`
+      }
+    ])
+  })
+
+  test('does not link node_modules when the project has none', async () => {
+    const { git } = createFakeGit((call) => {
+      const joined = call.args.join(' ')
+
+      if (joined === 'rev-parse --is-inside-work-tree') return ok('true\n')
+      if (joined === 'symbolic-ref refs/remotes/origin/HEAD')
+        return ok('refs/remotes/origin/main\n')
+      if (joined.startsWith('show-ref --verify --quiet')) return fail('', 1)
+      if (joined.startsWith('worktree add')) return ok()
+
+      throw new Error(`unexpected git call: ${joined}`)
+    })
+    const fs = createFakeFs()
+
+    await createWorktree({ git, ...fs.deps }, { project, task })
+
+    expect(fs.links).toEqual([])
   })
 
   test('falls back to `main` when symbolic-ref fails', async () => {
@@ -106,8 +159,7 @@ describe('createWorktree', () => {
       if (joined === 'rev-parse --is-inside-work-tree') return ok('true\n')
       if (joined === 'symbolic-ref refs/remotes/origin/HEAD')
         return fail('fatal: no HEAD', 128)
-      if (joined === 'show-ref --verify --quiet refs/heads/main')
-        return ok()
+      if (joined === 'show-ref --verify --quiet refs/heads/main') return ok()
       if (joined.startsWith('show-ref --verify --quiet refs/heads/code-monkey'))
         return fail('', 1)
       if (joined.startsWith('worktree add')) return ok()
@@ -133,8 +185,7 @@ describe('createWorktree', () => {
         return fail('', 128)
       if (joined === 'show-ref --verify --quiet refs/heads/main')
         return fail('', 1)
-      if (joined === 'show-ref --verify --quiet refs/heads/master')
-        return ok()
+      if (joined === 'show-ref --verify --quiet refs/heads/master') return ok()
       if (joined.startsWith('show-ref --verify --quiet refs/heads/code-monkey'))
         return fail('', 1)
       if (joined.startsWith('worktree add')) return ok()
@@ -186,14 +237,13 @@ describe('createWorktree', () => {
       if (joined === 'rev-parse --is-inside-work-tree') return ok('true\n')
       if (joined === 'symbolic-ref refs/remotes/origin/HEAD')
         return ok('refs/remotes/origin/main\n')
-      if (joined.startsWith('show-ref --verify --quiet'))
-        return fail('', 1)
+      if (joined.startsWith('show-ref --verify --quiet')) return fail('', 1)
 
       throw new Error(`unexpected git call: ${joined}`)
     })
     const fs = createFakeFs()
 
-    fs.existing.add('/home/u/Code/my-app.worktrees/t_e0b97cd3')
+    fs.existing.add(expectedPath)
 
     await expect(
       createWorktree({ git, ...fs.deps }, { project, task })
@@ -207,8 +257,7 @@ describe('createWorktree', () => {
       if (joined === 'rev-parse --is-inside-work-tree') return ok('true\n')
       if (joined === 'symbolic-ref refs/remotes/origin/HEAD')
         return ok('garbage\n')
-      if (joined === 'show-ref --verify --quiet refs/heads/main')
-        return ok()
+      if (joined === 'show-ref --verify --quiet refs/heads/main') return ok()
       if (joined.startsWith('show-ref --verify --quiet refs/heads/code-monkey'))
         return fail('', 1)
       if (joined.startsWith('worktree add')) return ok()
@@ -236,14 +285,14 @@ describe('removeWorktree', () => {
       {
         project,
         thread: {
-          worktreePath: '/home/u/Code/my-app.worktrees/t_e0b97cd3',
-          branchName: 'code-monkey/abc'
+          worktreePath: expectedPath,
+          branchName: expectedBranch
         }
       }
     )
 
     expect(calls.map((call) => call.args.join(' '))).toEqual([
-      'worktree remove --force /home/u/Code/my-app.worktrees/t_e0b97cd3'
+      `worktree remove --force ${expectedPath}`
     ])
     expect(calls.at(0)?.cwd).toEqual(project.directoryPath)
   })
@@ -257,16 +306,16 @@ describe('removeWorktree', () => {
       {
         project,
         thread: {
-          worktreePath: '/home/u/Code/my-app.worktrees/t_e0b97cd3',
-          branchName: 'code-monkey/abc'
+          worktreePath: expectedPath,
+          branchName: expectedBranch
         },
         deleteBranch: true
       }
     )
 
     expect(calls.map((call) => call.args.join(' '))).toEqual([
-      'worktree remove --force /home/u/Code/my-app.worktrees/t_e0b97cd3',
-      'branch -D code-monkey/abc'
+      `worktree remove --force ${expectedPath}`,
+      `branch -D ${expectedBranch}`
     ])
   })
 })
