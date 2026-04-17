@@ -144,7 +144,7 @@ export function AgentPane({
   const showMergeButton = onMerge && task.status !== 'done'
 
   return (
-    <div className='flex flex-col gap-3'>
+    <div className='flex min-h-0 flex-1 flex-col gap-3'>
       {thread.status === 'error' && thread.errorMessage && (
         <div
           role='alert'
@@ -154,7 +154,9 @@ export function AgentPane({
         </div>
       )}
 
-      <AgentTranscript events={events} />
+      <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
+        <AgentTranscript events={events} />
+      </div>
 
       <Composer
         disabled={composerDisabled}
