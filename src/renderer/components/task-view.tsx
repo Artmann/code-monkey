@@ -20,6 +20,7 @@ import {
 import { getAgentStateMeta } from '../lib/agent-state'
 import { getStatusMeta, statusOrder } from '../lib/task-status'
 import { cn } from '../lib/utils'
+import { AgentHeaderControls } from './agent-header-controls'
 import { AgentPane } from './agent-pane'
 import { Button } from './ui/button'
 import {
@@ -40,6 +41,7 @@ export function TaskView({ task }: TaskViewProps) {
   const navigate = useNavigate()
   const { projectId } = useParams<{ projectId: string }>()
   const updateTask = useUpdateTaskMutation()
+  const agent = useAgentTaskState(task)
 
   const agentMeta = getAgentStateMeta(task.agentState)
   const AgentIcon = agentMeta.icon
@@ -130,14 +132,26 @@ export function TaskView({ task }: TaskViewProps) {
           </Select>
         </div>
 
-        <Button
-          variant='ghost'
-          size='icon'
-          aria-label='Close task view'
-          onClick={closeTaskView}
-        >
-          <X />
-        </Button>
+        <div className='flex items-center gap-2'>
+          <AgentHeaderControls
+            task={task}
+            thread={agent.thread}
+            providerConfigured={agent.providerConfigured}
+            onStartWork={agent.onStartWork}
+            onMerge={agent.onMerge}
+            isStarting={agent.isStarting}
+            isMerging={agent.isMerging}
+          />
+
+          <Button
+            variant='ghost'
+            size='icon'
+            aria-label='Close task view'
+            onClick={closeTaskView}
+          >
+            <X />
+          </Button>
+        </div>
       </div>
 
       <Tabs
@@ -172,14 +186,24 @@ export function TaskView({ task }: TaskViewProps) {
           value='agent'
           className='flex min-h-0 flex-1 flex-col overflow-hidden p-6'
         >
-          <AgentPaneContainer task={task} />
+          <div className='flex h-full min-h-0 flex-1 flex-col'>
+            <AgentPane
+              task={task}
+              thread={agent.thread}
+              events={agent.events}
+              providerConfigured={agent.providerConfigured}
+              onSendMessage={agent.onSendMessage}
+              isSending={agent.isSending}
+              mergeError={agent.mergeError}
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
   )
 }
 
-function AgentPaneContainer({ task }: { task: Task }) {
+function useAgentTaskState(task: Task) {
   const providerQuery = useProviderSettingsQuery()
   const threadsQuery = useTaskThreadsQuery(task.id)
 
@@ -199,30 +223,25 @@ function AgentPaneContainer({ task }: { task: Task }) {
   const mergeError =
     mergeTask.error instanceof Error ? mergeTask.error.message : null
 
-  return (
-    <div className='flex h-full min-h-0 flex-1 flex-col'>
-      <AgentPane
-        task={task}
-        thread={thread}
-        events={events}
-        providerConfigured={Boolean(providerQuery.data)}
-        onStartWork={() => {
-          startThread.mutate(task.id)
-        }}
-        onSendMessage={(text) => {
-          if (!threadId) return
-          sendMessage.mutate({ threadId, text })
-        }}
-        onMerge={() => {
-          mergeTask.mutate(task.id)
-        }}
-        isStarting={startThread.isPending}
-        isSending={sendMessage.isPending}
-        isMerging={mergeTask.isPending}
-        mergeError={mergeError}
-      />
-    </div>
-  )
+  return {
+    thread,
+    events,
+    providerConfigured: Boolean(providerQuery.data),
+    isStarting: startThread.isPending,
+    isSending: sendMessage.isPending,
+    isMerging: mergeTask.isPending,
+    mergeError,
+    onStartWork: () => {
+      startThread.mutate(task.id)
+    },
+    onSendMessage: (text: string) => {
+      if (!threadId) return
+      sendMessage.mutate({ threadId, text })
+    },
+    onMerge: () => {
+      mergeTask.mutate(task.id)
+    }
+  }
 }
 
 interface EditableTitleProps {

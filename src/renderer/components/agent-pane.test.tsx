@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, test, vi } from 'vitest'
 
-import type { Thread, ThreadEvent } from '../hooks/use-thread'
+import type { Thread } from '../hooks/use-thread'
 import { buildTask, renderWithProviders } from '../test-utils'
 import { AgentPane } from './agent-pane'
 
@@ -21,130 +21,53 @@ const buildThread = (overrides: Partial<Thread> = {}): Thread => ({
 })
 
 describe('AgentPane', () => {
-  test('shows Start Work, disabled, when provider is not configured', () => {
+  test('shows an empty-state message and provider hint when there is no thread and provider is not configured', () => {
     renderWithProviders(
       <AgentPane
         task={buildTask({ status: 'todo' })}
         thread={null}
         events={[]}
         providerConfigured={false}
-        onStartWork={() => undefined}
         onSendMessage={() => undefined}
-        isStarting={false}
         isSending={false}
       />
     )
 
-    const button = screen.getByRole('button', { name: /start work/i })
-
-    expect(button).toBeDisabled()
-    expect(
-      screen.getByText(/configure codex/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/no agent thread yet/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /configure codex/i })).toBeInTheDocument()
   })
 
-  test('enables Start Work when provider is configured', async () => {
-    const onStartWork = vi.fn()
-    const user = userEvent.setup()
-
+  test('omits the provider hint when provider is configured', () => {
     renderWithProviders(
       <AgentPane
         task={buildTask({ status: 'todo' })}
         thread={null}
         events={[]}
         providerConfigured={true}
-        onStartWork={onStartWork}
         onSendMessage={() => undefined}
-        isStarting={false}
-        isSending={false}
-      />
-    )
-
-    const button = screen.getByRole('button', { name: /start work/i })
-
-    expect(button).toBeEnabled()
-
-    await user.click(button)
-
-    expect(onStartWork).toHaveBeenCalledTimes(1)
-  })
-
-  test('enables Start Work when the task is already In Progress but has no thread', () => {
-    renderWithProviders(
-      <AgentPane
-        task={buildTask({ status: 'in_progress' })}
-        thread={null}
-        events={[]}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onSendMessage={() => undefined}
-        isStarting={false}
         isSending={false}
       />
     )
 
     expect(
-      screen.getByRole('button', { name: /start work/i })
-    ).toBeEnabled()
+      screen.queryByRole('link', { name: /configure codex/i })
+    ).not.toBeInTheDocument()
   })
 
-  test('hides Start Work when the task is already done', () => {
+  test('shows a done-state message when there is no thread and the task is done', () => {
     renderWithProviders(
       <AgentPane
         task={buildTask({ status: 'done' })}
         thread={null}
         events={[]}
         providerConfigured={true}
-        onStartWork={() => undefined}
         onSendMessage={() => undefined}
-        isStarting={false}
         isSending={false}
       />
     )
 
     expect(
-      screen.queryByRole('button', { name: /start work/i })
-    ).not.toBeInTheDocument()
-  })
-
-  test('renders the transcript and a composer once a thread exists', () => {
-    const events: ThreadEvent[] = [
-      {
-        id: 'e0',
-        threadId: 'thread-1',
-        sequence: 0,
-        type: 'prep',
-        payload: { message: 'preparing' },
-        createdAt: new Date(0).toISOString()
-      },
-      {
-        id: 'e1',
-        threadId: 'thread-1',
-        sequence: 1,
-        type: 'item.completed',
-        payload: {
-          item: { id: 'm1', type: 'agent_message', text: 'hello world' }
-        },
-        createdAt: new Date(0).toISOString()
-      }
-    ]
-
-    renderWithProviders(
-      <AgentPane
-        task={buildTask({ status: 'in_progress' })}
-        thread={buildThread({ status: 'idle' })}
-        events={events}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onSendMessage={() => undefined}
-        isStarting={false}
-        isSending={false}
-      />
-    )
-
-    expect(screen.getByText('hello world')).toBeInTheDocument()
-    expect(
-      screen.getByPlaceholderText(/type a follow-up/i)
+      screen.getByText(/this task is marked as done/i)
     ).toBeInTheDocument()
   })
 
@@ -155,9 +78,7 @@ describe('AgentPane', () => {
         thread={buildThread({ status: 'running' })}
         events={[]}
         providerConfigured={true}
-        onStartWork={() => undefined}
         onSendMessage={() => undefined}
-        isStarting={false}
         isSending={false}
       />
     )
@@ -165,10 +86,9 @@ describe('AgentPane', () => {
     expect(
       screen.getByPlaceholderText(/type a follow-up/i)
     ).toBeDisabled()
-    expect(screen.getByRole('button', { name: /send/i })).toBeDisabled()
   })
 
-  test('sends the composer text on submit', async () => {
+  test('sends a follow-up through the composer when the thread is idle', async () => {
     const onSendMessage = vi.fn()
     const user = userEvent.setup()
 
@@ -178,132 +98,47 @@ describe('AgentPane', () => {
         thread={buildThread({ status: 'idle' })}
         events={[]}
         providerConfigured={true}
-        onStartWork={() => undefined}
         onSendMessage={onSendMessage}
-        isStarting={false}
         isSending={false}
       />
     )
 
-    await user.type(
-      screen.getByPlaceholderText(/type a follow-up/i),
-      'keep going'
-    )
+    const textbox = screen.getByPlaceholderText(/type a follow-up/i)
+
+    await user.type(textbox, 'what next?')
     await user.click(screen.getByRole('button', { name: /send/i }))
 
-    expect(onSendMessage).toHaveBeenCalledWith('keep going')
+    expect(onSendMessage).toHaveBeenCalledWith('what next?')
   })
 
-  test('shows the thread error message when the thread is in error', () => {
+  test('surfaces the thread error message as an alert', () => {
     renderWithProviders(
       <AgentPane
         task={buildTask({ status: 'in_progress' })}
-        thread={buildThread({
-          status: 'error',
-          errorMessage: 'Interrupted by app exit'
-        })}
+        thread={buildThread({ status: 'error', errorMessage: 'boom' })}
         events={[]}
         providerConfigured={true}
-        onStartWork={() => undefined}
         onSendMessage={() => undefined}
-        isStarting={false}
         isSending={false}
       />
     )
 
-    expect(
-      screen.getByText(/interrupted by app exit/i)
-    ).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('boom')
   })
 
-  test('shows Merge to Main when the thread is idle and the task is not done', async () => {
-    const onMerge = vi.fn()
-    const user = userEvent.setup()
-
+  test('surfaces the merge error as an alert when provided', () => {
     renderWithProviders(
       <AgentPane
         task={buildTask({ status: 'in_progress' })}
         thread={buildThread({ status: 'idle' })}
         events={[]}
         providerConfigured={true}
-        onStartWork={() => undefined}
         onSendMessage={() => undefined}
-        onMerge={onMerge}
-        isStarting={false}
         isSending={false}
-        isMerging={false}
+        mergeError='merge conflict'
       />
     )
 
-    const button = screen.getByRole('button', { name: /merge to main/i })
-
-    expect(button).toBeEnabled()
-
-    await user.click(button)
-
-    expect(onMerge).toHaveBeenCalledTimes(1)
-  })
-
-  test('disables Merge to Main while the task agent state is working', () => {
-    renderWithProviders(
-      <AgentPane
-        task={buildTask({ status: 'in_progress', agentState: 'working' })}
-        thread={buildThread({ status: 'idle' })}
-        events={[]}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onSendMessage={() => undefined}
-        onMerge={() => undefined}
-        isStarting={false}
-        isSending={false}
-        isMerging={false}
-      />
-    )
-
-    expect(
-      screen.getByRole('button', { name: /merge to main/i })
-    ).toBeDisabled()
-  })
-
-  test('disables Merge to Main while the thread is running', () => {
-    renderWithProviders(
-      <AgentPane
-        task={buildTask({ status: 'in_progress' })}
-        thread={buildThread({ status: 'running' })}
-        events={[]}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onSendMessage={() => undefined}
-        onMerge={() => undefined}
-        isStarting={false}
-        isSending={false}
-        isMerging={false}
-      />
-    )
-
-    expect(
-      screen.getByRole('button', { name: /merge to main/i })
-    ).toBeDisabled()
-  })
-
-  test('hides Merge to Main once the task is done', () => {
-    renderWithProviders(
-      <AgentPane
-        task={buildTask({ status: 'done' })}
-        thread={buildThread({ status: 'idle' })}
-        events={[]}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onSendMessage={() => undefined}
-        onMerge={() => undefined}
-        isStarting={false}
-        isSending={false}
-        isMerging={false}
-      />
-    )
-
-    expect(
-      screen.queryByRole('button', { name: /merge to main/i })
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('merge conflict')
   })
 })

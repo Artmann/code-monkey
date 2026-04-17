@@ -74,13 +74,19 @@ describe('TaskView', () => {
     await user.type(input, 'Updated title{enter}')
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalled()
+      expect(
+        fetchMock.mock.calls.find(
+          (call) => (call[1] as RequestInit | undefined)?.method === 'PATCH'
+        )
+      ).toBeDefined()
     })
 
-    const call = fetchMock.mock.calls[0] as unknown as [unknown, RequestInit]
-    const init = call[1]
-    expect(init.method).toEqual('PATCH')
-    expect(JSON.parse(init.body as string)).toEqual({ title: 'Updated title' })
+    const patchCall = fetchMock.mock.calls.find(
+      (call) => (call[1] as RequestInit | undefined)?.method === 'PATCH'
+    ) as unknown as [unknown, RequestInit]
+    expect(JSON.parse(patchCall[1].body as string)).toEqual({
+      title: 'Updated title'
+    })
   })
 
   it('opens the description editor from the pen button', async () => {
@@ -120,6 +126,10 @@ describe('TaskView', () => {
     expect(
       screen.getByRole('button', { name: /keep me/i })
     ).toBeInTheDocument()
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(
+      fetchMock.mock.calls.find(
+        (call) => (call[1] as RequestInit | undefined)?.method === 'PATCH'
+      )
+    ).toBeUndefined()
   })
 })
