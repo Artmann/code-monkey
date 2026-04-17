@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `agent_state` text NOT NULL DEFAULT 'idle';

@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1776435242731,
+      "tag": "0000_stale_moon_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776436359873,
+      "tag": "0001_fresh_scalphunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776436611550,
+      "tag": "0002_spotty_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776436799314,
+      "tag": "0003_high_vivisector",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+import { BrowserWindow, app, screen } from 'electron'
+import started from 'electron-squirrel-startup'
+import path from 'node:path'
+import { startApiServer } from './api/server'
+import { runMigrations } from './database/migrate'
+import { registerDialogHandlers } from './ipc/dialog'
+
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
+declare const MAIN_WINDOW_VITE_NAME: string
+
+if (started) {
+  app.quit()
+}
+
+let apiPort: number | null = null
+
+async function createMainWindow(): Promise<void> {
+  const { workAreaSize } = screen.getPrimaryDisplay()
+
+  const mainWindow = new BrowserWindow({
+    width: workAreaSize.width,
+    height: workAreaSize.height,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      additionalArguments: [`--code-monkey-api-port=${apiPort ?? 0}`]
+    }
+  })
+
+  mainWindow.maximize()
+  mainWindow.show()
+
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    await mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+  } else {
+    await mainWindow.loadFile(
+      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
+    )
+  }
+
+  mainWindow.webContents.openDevTools()
+}
+
+async function bootstrap(): Promise<void> {
+  runMigrations()
+
+  apiPort = await startApiServer()
+  console.log(`[code-monkey] API listening on http://127.0.0.1:${apiPort}`)
+
+  registerDialogHandlers()
+
+  await app.whenReady()
+  await createMainWindow()
+}
+
+bootstrap().catch((error) => {
+  console.error('[code-monkey] fatal startup error', error)
+  app.quit()
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    void createMainWindow()
+  }
+})
