@@ -88,7 +88,12 @@ const createEventChannel = () => {
 
 type FakeThread = {
   readonly handle: AgentRunnerThread
-  options: { workingDirectory?: string; skipGitRepoCheck?: boolean }
+  options: {
+    workingDirectory?: string
+    skipGitRepoCheck?: boolean
+    sandboxMode?: string
+    approvalPolicy?: string
+  }
   inputs: string[]
   emit: (event: FakeEvent) => void
   close: () => void
@@ -96,7 +101,12 @@ type FakeThread = {
 }
 
 const createFakeThread = (
-  options: { workingDirectory?: string; skipGitRepoCheck?: boolean },
+  options: {
+    workingDirectory?: string
+    skipGitRepoCheck?: boolean
+    sandboxMode?: string
+    approvalPolicy?: string
+  },
   resumedFromId: string | null = null
 ): FakeThread => {
   const channel = createEventChannel()
@@ -359,6 +369,34 @@ describe('createAgentRunner', () => {
         `t_${task.id.slice(0, 8)}`
       )
       expect(fakeThread.options.skipGitRepoCheck).toEqual(false)
+    })
+
+    test('grants the agent workspace-write sandbox access by default', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      await harness.runner.start(task.id)
+      await waitFor(() => harness.threads.length === 1)
+
+      const [fakeThread] = harness.threads
+
+      invariant(fakeThread, 'fake thread missing')
+
+      expect(fakeThread.options.sandboxMode).toEqual('workspace-write')
+    })
+
+    test('lets the agent use tools without prompting for approval', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      await harness.runner.start(task.id)
+      await waitFor(() => harness.threads.length === 1)
+
+      const [fakeThread] = harness.threads
+
+      invariant(fakeThread, 'fake thread missing')
+
+      expect(fakeThread.options.approvalPolicy).toEqual('never')
     })
 
     test('sends task title + description as the first run input', async () => {

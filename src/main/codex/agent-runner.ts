@@ -14,14 +14,18 @@ export type AgentRunnerThread = {
   }>
 }
 
+export type AgentThreadOptions = {
+  workingDirectory?: string
+  skipGitRepoCheck?: boolean
+  sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'
+  approvalPolicy?: 'never' | 'on-request' | 'on-failure' | 'untrusted'
+}
+
 export type AgentRunnerCodex = {
-  startThread: (options?: {
-    workingDirectory?: string
-    skipGitRepoCheck?: boolean
-  }) => AgentRunnerThread
+  startThread: (options?: AgentThreadOptions) => AgentRunnerThread
   resumeThread: (
     threadId: string,
-    options?: { workingDirectory?: string; skipGitRepoCheck?: boolean }
+    options?: AgentThreadOptions
   ) => AgentRunnerThread
 }
 
@@ -321,7 +325,9 @@ export const createAgentRunner = (
     const codex = createCodex(settings)
     const thread = codex.startThread({
       workingDirectory: created.path,
-      skipGitRepoCheck: false
+      skipGitRepoCheck: false,
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'never'
     })
 
     void (async () => {
@@ -384,11 +390,15 @@ export const createAgentRunner = (
     const thread = threadRow.codexThreadId
       ? codex.resumeThread(threadRow.codexThreadId, {
           workingDirectory: threadRow.worktreePath,
-          skipGitRepoCheck: false
+          skipGitRepoCheck: false,
+          sandboxMode: 'workspace-write',
+          approvalPolicy: 'never'
         })
       : codex.startThread({
           workingDirectory: threadRow.worktreePath,
-          skipGitRepoCheck: false
+          skipGitRepoCheck: false,
+          sandboxMode: 'workspace-write',
+          approvalPolicy: 'never'
         })
 
     void (async () => {
