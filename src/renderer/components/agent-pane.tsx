@@ -145,11 +145,11 @@ export function AgentPane({
   const showMergeButton = onMerge && task.status !== 'done'
 
   return (
-    <div className='flex min-h-0 flex-1 flex-col gap-3'>
+    <div className='flex h-full min-h-0 flex-1 flex-col overflow-hidden'>
       {thread.status === 'error' && thread.errorMessage && (
         <div
           role='alert'
-          className='rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive'
+          className='shrink-0 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive'
         >
           {thread.errorMessage}
         </div>
@@ -159,13 +159,15 @@ export function AgentPane({
         <AgentTranscript events={events} />
       </div>
 
-      <Composer
-        disabled={composerDisabled}
-        onSend={onSendMessage}
-      />
+      <div className='shrink-0 pt-3'>
+        <Composer
+          disabled={composerDisabled}
+          onSend={onSendMessage}
+        />
+      </div>
 
       {showMergeButton && (
-        <div className='flex flex-col gap-2 border-t pt-3'>
+        <div className='flex shrink-0 flex-col gap-2 border-t pt-3'>
           {mergeError && (
             <p
               role='alert'

@@ -170,7 +170,7 @@ export function TaskView({ task }: TaskViewProps) {
 
         <TabsContent
           value='agent'
-          className='flex min-h-0 flex-1 flex-col p-6'
+          className='flex min-h-0 flex-1 flex-col overflow-hidden p-6'
         >
           <AgentPaneContainer task={task} />
         </TabsContent>
@@ -200,26 +200,28 @@ function AgentPaneContainer({ task }: { task: Task }) {
     mergeTask.error instanceof Error ? mergeTask.error.message : null
 
   return (
-    <AgentPane
-      task={task}
-      thread={thread}
-      events={events}
-      providerConfigured={Boolean(providerQuery.data)}
-      onStartWork={() => {
-        startThread.mutate(task.id)
-      }}
-      onSendMessage={(text) => {
-        if (!threadId) return
-        sendMessage.mutate({ threadId, text })
-      }}
-      onMerge={() => {
-        mergeTask.mutate(task.id)
-      }}
-      isStarting={startThread.isPending}
-      isSending={sendMessage.isPending}
-      isMerging={mergeTask.isPending}
-      mergeError={mergeError}
-    />
+    <div className='flex h-full min-h-0 flex-1 flex-col'>
+      <AgentPane
+        task={task}
+        thread={thread}
+        events={events}
+        providerConfigured={Boolean(providerQuery.data)}
+        onStartWork={() => {
+          startThread.mutate(task.id)
+        }}
+        onSendMessage={(text) => {
+          if (!threadId) return
+          sendMessage.mutate({ threadId, text })
+        }}
+        onMerge={() => {
+          mergeTask.mutate(task.id)
+        }}
+        isStarting={startThread.isPending}
+        isSending={sendMessage.isPending}
+        isMerging={mergeTask.isPending}
+        mergeError={mergeError}
+      />
+    </div>
   )
 }
 
