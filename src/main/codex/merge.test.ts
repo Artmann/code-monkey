@@ -213,4 +213,108 @@ describe('mergeTaskBranch', () => {
 
     expect(aborted).toHaveLength(1)
   })
+
+  test('uses a generated commit message when generateMessage is provided and succeeds', async () => {
+    const generatorCalls: Array<{
+      taskTitle: string
+      diff: string
+      worktreePath: string
+    }> = []
+    const generatedSubject = 'Tweak x to 2'
+    const diffOutput = 'diff --git a/x b/x\n+changed'
+
+    const { git, calls } = createFakeGit((call) => {
+      const key = `${call.cwd}::${call.args.join(' ')}`
+
+      if (
+        key === `${thread.worktreePath}::status --porcelain` ||
+        key === `${project.directoryPath}::status --porcelain`
+      )
+        return ok('')
+      if (key === `${project.directoryPath}::rev-parse --abbrev-ref HEAD`)
+        return ok('main\n')
+      if (
+        key ===
+        `${project.directoryPath}::diff ${thread.baseBranch}...${thread.branchName}`
+      )
+        return ok(diffOutput)
+      if (
+        key ===
+        `${project.directoryPath}::merge -m ${generatedSubject} ${thread.branchName}`
+      )
+        return ok('Merge made.')
+      if (key === `${project.directoryPath}::rev-parse HEAD`)
+        return ok('cafef00d\n')
+
+      throw new Error(`unexpected git call: ${key}`)
+    })
+
+    const result = await mergeTaskBranch(
+      {
+        git,
+        generateMessage: async (input) => {
+          generatorCalls.push(input)
+
+          return generatedSubject
+        }
+      },
+      { project, thread, taskTitle }
+    )
+
+    expect(result.mergeCommitSha).toEqual('cafef00d')
+    expect(generatorCalls).toEqual([
+      { taskTitle, diff: diffOutput, worktreePath: thread.worktreePath }
+    ])
+    expect(calls.map((call) => call.args.join(' '))).toContain(
+      `merge -m ${generatedSubject} ${thread.branchName}`
+    )
+  })
+
+  test('falls back to "Merge: <taskTitle>" when generateMessage returns null', async () => {
+    let generateCalls = 0
+
+    const { git, calls } = createFakeGit((call) => {
+      const key = `${call.cwd}::${call.args.join(' ')}`
+
+      if (
+        key === `${thread.worktreePath}::status --porcelain` ||
+        key === `${project.directoryPath}::status --porcelain`
+      )
+        return ok('')
+      if (key === `${project.directoryPath}::rev-parse --abbrev-ref HEAD`)
+        return ok('main\n')
+      if (
+        key ===
+        `${project.directoryPath}::diff ${thread.baseBranch}...${thread.branchName}`
+      )
+        return ok('some diff')
+      if (
+        key ===
+        `${project.directoryPath}::merge -m Merge: ${taskTitle} ${thread.branchName}`
+      )
+        return ok('Merge made.')
+      if (key === `${project.directoryPath}::rev-parse HEAD`)
+        return ok('f00dcafe\n')
+
+      throw new Error(`unexpected git call: ${key}`)
+    })
+
+    const result = await mergeTaskBranch(
+      {
+        git,
+        generateMessage: async () => {
+          generateCalls++
+
+          return null
+        }
+      },
+      { project, thread, taskTitle }
+    )
+
+    expect(generateCalls).toEqual(1)
+    expect(result.mergeCommitSha).toEqual('f00dcafe')
+    expect(calls.map((call) => call.args.join(' '))).toContain(
+      `merge -m Merge: ${taskTitle} ${thread.branchName}`
+    )
+  })
 })

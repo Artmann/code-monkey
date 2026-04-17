@@ -1,7 +1,14 @@
 import type { GitExecutor } from './worktree'
 
+export type GenerateMergeMessage = (input: {
+  taskTitle: string
+  diff: string
+  worktreePath: string
+}) => Promise<string | null>
+
 export type MergeDependencies = {
   git: GitExecutor
+  generateMessage?: GenerateMergeMessage
 }
 
 export type MergeTaskInput = {
@@ -30,7 +37,7 @@ export const mergeTaskBranch = async (
   dependencies: MergeDependencies,
   { project, thread, taskTitle }: MergeTaskInput
 ): Promise<MergeTaskResult> => {
-  const { git } = dependencies
+  const { git, generateMessage } = dependencies
   const worktreeCwd = thread.worktreePath
   const projectCwd = project.directoryPath
 
@@ -81,8 +88,29 @@ export const mergeTaskBranch = async (
     )
   }
 
+  let commitMessage = `Merge: ${taskTitle}`
+
+  if (generateMessage != null) {
+    const diffResult = await git(
+      ['diff', `${thread.baseBranch}...${thread.branchName}`],
+      { cwd: projectCwd }
+    )
+
+    if (diffResult.exitCode === 0) {
+      const generated = await generateMessage({
+        taskTitle,
+        diff: diffResult.stdout,
+        worktreePath: worktreeCwd
+      })
+
+      if (generated != null && generated !== '') {
+        commitMessage = generated
+      }
+    }
+  }
+
   const mergeResult = await git(
-    ['merge', '-m', `Merge: ${taskTitle}`, thread.branchName],
+    ['merge', '-m', commitMessage, thread.branchName],
     { cwd: projectCwd }
   )
 
