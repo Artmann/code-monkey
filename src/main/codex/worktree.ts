@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { mkdir, stat, symlink } from 'node:fs/promises'
-import { basename, join } from 'node:path/posix'
+import { join } from 'node:path/posix'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -47,7 +47,15 @@ const branchNameFor = (taskId: string) => `code-monkey/${taskId}`
 
 const worktreeDirName = (branch: string) => branch.replaceAll('/', '-')
 
-const repoDirName = (directoryPath: string) => basename(directoryPath)
+const repoDirName = (directoryPath: string) => {
+  const trimmed = directoryPath.replace(/[\\/]+$/, '')
+  const lastSeparator = Math.max(
+    trimmed.lastIndexOf('/'),
+    trimmed.lastIndexOf('\\')
+  )
+
+  return lastSeparator === -1 ? trimmed : trimmed.slice(lastSeparator + 1)
+}
 
 const worktreePathFor = (
   worktreesRoot: string,

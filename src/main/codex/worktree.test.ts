@@ -250,6 +250,49 @@ describe('createWorktree', () => {
     ).rejects.toThrow(/already exists/i)
   })
 
+  test('extracts the repo directory name from a Windows-style project path', async () => {
+    const { git, calls } = createFakeGit((call) => {
+      const joined = call.args.join(' ')
+
+      if (joined === 'rev-parse --is-inside-work-tree') return ok('true\n')
+      if (joined === 'symbolic-ref refs/remotes/origin/HEAD')
+        return ok('refs/remotes/origin/main\n')
+      if (joined.startsWith('show-ref --verify --quiet')) return fail('', 1)
+      if (joined.startsWith('worktree add')) return ok()
+
+      throw new Error(`unexpected git call: ${joined}`)
+    })
+    const ensured: string[] = []
+    const existing = new Set<string>()
+    const deps: Omit<WorktreeDependencies, 'git'> = {
+      worktreesRoot: 'C:\\Users\\u\\.code-monkey\\worktrees',
+      ensureDir: async (path) => {
+        ensured.push(path)
+        existing.add(path)
+      },
+      pathExists: async (path) => existing.has(path),
+      linkNodeModules: async () => {}
+    }
+
+    const windowsProject = {
+      id: 'proj-1',
+      directoryPath: 'C:\\Users\\u\\Code\\my-app'
+    }
+
+    const result = await createWorktree(
+      { git, ...deps },
+      { project: windowsProject, task }
+    )
+
+    expect(ensured).toEqual(['C:\\Users\\u\\.code-monkey\\worktrees/my-app'])
+    expect(result.path).toEqual(
+      `C:\\Users\\u\\.code-monkey\\worktrees/my-app/${expectedDirName}`
+    )
+    expect(calls.map((call) => call.args.join(' '))).toContain(
+      `worktree add -b ${expectedBranch} C:\\Users\\u\\.code-monkey\\worktrees/my-app/${expectedDirName} main`
+    )
+  })
+
   test('falls back to "main" as the base branch when symbolic-ref prints a non-ref', async () => {
     const { git } = createFakeGit((call) => {
       const joined = call.args.join(' ')
