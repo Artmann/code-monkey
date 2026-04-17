@@ -116,6 +116,31 @@
   code, kbd, pre, .font-mono {
     font-feature-settings: 'zero', 'ss01';
   }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(1 0 0 / 12%) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: oklch(1 0 0 / 12%);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(1 0 0 / 22%);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @layer utilities {
