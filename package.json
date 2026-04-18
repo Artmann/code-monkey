@@ -25,6 +25,7 @@
     "prepack": "pnpm build:npm",
     "release": "pnpm build && electron-forge publish",
     "start": "electron-forge start",
+    "task:inspect": "node scripts/task-inspect.mjs",
     "test:run": "vitest run",
     "test": "vitest",
     "typecheck": "tsc --noEmit"
