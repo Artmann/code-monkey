@@ -107,6 +107,38 @@ Migrations run automatically at startup via `src/main/database/migrate.ts`.
 - Prefer `toEqual` over `toBe`, and compare whole objects rather than
   picking a single property.
 
+## Publishing
+
+Two independent release paths:
+
+- **Installers** via electron-forge (GitHub Releases):
+
+  ```sh
+  pnpm release
+  ```
+
+  Runs `pnpm build` (typecheck + lint + tests + `electron-forge make`)
+  then `electron-forge publish` to upload `.exe` / `.dmg` / `.deb` /
+  `.rpm` artifacts.
+
+- **npm tarball** (so users can `npx @artmann/codemonkey`):
+
+  ```sh
+  pnpm publish
+  ```
+
+  pnpm's built-in `publish` fires the `prepack` hook, which runs
+  `scripts/build-npm.mjs` to populate `dist/`. The published tarball
+  contains only `bin/`, `dist/`, `scripts/postinstall.mjs`, `README.md`,
+  and `LICENSE`. On install, `scripts/postinstall.mjs` rebuilds
+  `better-sqlite3` against the user's Electron.
+
+Verify the tarball contents locally before pushing a real release:
+
+```sh
+pnpm pack --dry-run
+```
+
 ## Commits
 
 - Short, imperative subject ("Add X", "Fix Y").

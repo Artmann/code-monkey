@@ -20,6 +20,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.5)
+      '@electron/rebuild':
+        specifier: ^3.7.0
+        version: 3.7.2
       '@hono/node-server':
         specifier: ^1.19.14
         version: 1.19.14(hono@4.12.14)
@@ -50,6 +53,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.9.0)
+      electron:
+        specifier: 41.2.1
+        version: 41.2.1
       electron-squirrel-startup:
         specifier: ^1.0.1
         version: 1.0.1
@@ -162,9 +168,6 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
-      electron:
-        specifier: 41.2.1
-        version: 41.2.1
       eslint:
         specifier: ^8.57.1
         version: 8.57.1

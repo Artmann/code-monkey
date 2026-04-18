@@ -29,7 +29,23 @@ transcripts never leave the machine.
 - **Theming.** Light / Dark / System, backed by the
   [Catppuccin](https://catppuccin.com) palette (Latte and Macchiato).
 
-## Requirements
+## Try it
+
+If you have Node.js **22+** on your `PATH`:
+
+```sh
+npx @artmann/codemonkey
+```
+
+That downloads the package, installs Electron + its native deps, and
+launches the desktop app. First run takes a minute while
+`better-sqlite3` rebuilds against the installed Electron; subsequent runs
+are instant.
+
+Prefer a signed installer? Grab a `.exe` / `.dmg` / `.deb` / `.rpm` from
+the [Releases](https://github.com/Artmann/code-monkey/releases) page.
+
+## Requirements (development)
 
 - [pnpm](https://pnpm.io/) with Node.js **22** or **24**
 - Git on your `PATH`
@@ -67,7 +83,8 @@ disk.
 | `pnpm package`         | Produce an unpacked Electron app                   |
 | `pnpm make`            | Produce platform installers                        |
 | `pnpm build`           | Run typecheck + lint + tests and produce installers |
-| `pnpm publish`         | Build then publish a release via electron-forge    |
+| `pnpm build:npm`       | Produce `dist/` for the npm tarball (used by `prepack`) |
+| `pnpm release`         | Build then publish a release via electron-forge    |
 
 ## Data locations
 
