@@ -1,7 +1,7 @@
 {
   "name": "@artmann/codemonkey",
   "productName": "code-monkey",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A local-first desktop workbench for coding agents. Each task runs in its own isolated git worktree with a streaming agent view.",
   "main": "dist/main/main.js",
   "bin": {
