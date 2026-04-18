@@ -656,15 +656,26 @@ describe('createAgentRunner', () => {
       expect(secondThread.handle.id).toBeNull()
     })
 
-    test('refuses to restart while the prior thread is still running', async () => {
+    test('force-abandons a stuck prior thread and starts a fresh one', async () => {
       const harness = createHarness()
       const { task } = seedProjectAndTask(harness.database)
 
-      await harness.runner.start(task.id)
+      const { threadId: firstId } = await harness.runner.start(task.id)
 
-      await expect(harness.runner.restartThread(task.id)).rejects.toThrow(
-        /still running/i
-      )
+      await waitFor(() => harness.threads.length === 1)
+
+      const result = await harness.runner.restartThread(task.id)
+
+      expect(result.threadId).not.toEqual(firstId)
+
+      const firstRow = getThreadRow(harness.database, firstId)
+
+      expect(firstRow?.status).toEqual('error')
+      expect(firstRow?.errorMessage).toMatch(/interrupted/i)
+
+      const newRow = getThreadRow(harness.database, result.threadId)
+
+      expect(newRow?.status).toEqual('running')
     })
 
     test('throws when the task has no prior thread', async () => {

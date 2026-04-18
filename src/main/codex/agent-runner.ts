@@ -387,13 +387,35 @@ export const createAgentRunner = (
       )
     }
 
+    // If the previous thread is stuck in a running/starting state (e.g. the
+    // app crashed or the agent hung), mark it abandoned so the user can
+    // recover by starting a fresh chat. Mirrors `recoverOrphanedThreads`.
     if (
       previousThread.status === 'running' ||
       previousThread.status === 'starting'
     ) {
-      throw new Error(
-        'Thread is still running. Wait for the agent to finish before starting a new chat.'
-      )
+      appendEvent(previousThread.id, 'error', { message: interruptionMessage })
+
+      database
+        .update(schema.threads)
+        .set({
+          status: 'error',
+          errorMessage: interruptionMessage,
+          lastActivityAt: clock()
+        })
+        .where(eq(schema.threads.id, previousThread.id))
+        .run()
+
+      database
+        .update(schema.tasks)
+        .set({ agentState: 'idle', updatedAt: clock() })
+        .where(
+          and(
+            eq(schema.tasks.id, task.id),
+            eq(schema.tasks.agentState, 'working')
+          )
+        )
+        .run()
     }
 
     if (!previousThread.worktreePath) {

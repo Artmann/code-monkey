@@ -121,11 +121,11 @@ describe('AgentHeaderControls', () => {
     ).toBeDisabled()
   })
 
-  test('disables New chat while the thread is running', () => {
+  test('keeps New chat enabled while the thread is running so stuck tasks can be recovered', () => {
     renderWithProviders(
       <AgentHeaderControls
         {...baseProps({
-          task: buildTask({ status: 'in_progress' }),
+          task: buildTask({ status: 'in_progress', agentState: 'working' }),
           thread: buildThread({ status: 'running' })
         })}
       />
@@ -133,7 +133,7 @@ describe('AgentHeaderControls', () => {
 
     expect(
       screen.getByRole('button', { name: /start new chat/i })
-    ).toBeDisabled()
+    ).toBeEnabled()
   })
 
   test('disables New chat while restarting', () => {

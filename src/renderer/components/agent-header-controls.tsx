@@ -53,9 +53,7 @@ export function AgentHeaderControls({
         size='sm'
         variant='outline'
         onClick={onRestartChat}
-        disabled={
-          !providerConfigured || threadBusy || agentWorking || isRestarting
-        }
+        disabled={!providerConfigured || isRestarting}
         aria-label='Start new chat'
       >
         <MessageSquarePlus
