@@ -11,6 +11,7 @@ import {
 } from '../hooks/use-tasks'
 import {
   useMergeTaskMutation,
+  useRestartThreadMutation,
   useSendMessageMutation,
   useStartThreadMutation,
   useTaskThreadsQuery,
@@ -136,8 +137,10 @@ export function TaskView({ task, onClose }: TaskViewProps) {
             thread={agent.thread}
             providerConfigured={agent.providerConfigured}
             onStartWork={agent.onStartWork}
+            onRestartChat={agent.onRestartChat}
             onMerge={agent.onMerge}
             isStarting={agent.isStarting}
+            isRestarting={agent.isRestarting}
             isMerging={agent.isMerging}
           />
 
@@ -217,6 +220,7 @@ function useAgentTaskState(
   useThreadStream(threadId)
 
   const startThread = useStartThreadMutation()
+  const restartThread = useRestartThreadMutation()
   const sendMessage = useSendMessageMutation()
   const mergeTask = useMergeTaskMutation()
 
@@ -230,11 +234,17 @@ function useAgentTaskState(
     events,
     providerConfigured: Boolean(providerQuery.data),
     isStarting: startThread.isPending,
+    isRestarting: restartThread.isPending,
     isSending: sendMessage.isPending,
     isMerging: mergeTask.isPending,
     mergeError,
     onStartWork: () => {
       startThread.mutate(task.id, {
+        onSuccess: () => options.onStarted?.()
+      })
+    },
+    onRestartChat: () => {
+      restartThread.mutate(task.id, {
         onSuccess: () => options.onStarted?.()
       })
     },

@@ -7,9 +7,12 @@ import {
   FilePlus,
   FileText,
   Loader2,
-  Terminal
+  Terminal,
+  User
 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 import type { Thread, ThreadEvent } from '../hooks/use-thread'
 import { cn } from '../lib/utils'
@@ -97,6 +100,12 @@ type ToolStep = {
 
 type RenderNode =
   | { kind: 'prep'; id: string; payload: PrepPayload }
+  | {
+      kind: 'user'
+      id: string
+      text: string
+      timestamp: string | null
+    }
   | {
       kind: 'agent'
       id: string
@@ -190,6 +199,26 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
         id: event.id,
         payload:
           (event.payload as PrepPayload | null | undefined) ?? ({} as PrepPayload)
+      })
+      continue
+    }
+
+    if (event.type === 'user_message') {
+      flushActivity(activity)
+      activity = null
+      const record =
+        typeof event.payload === 'object' && event.payload !== null
+          ? (event.payload as { text?: string })
+          : {}
+      const text = record.text ?? ''
+
+      if (text.trim() === '') continue
+
+      nodes.push({
+        kind: 'user',
+        id: event.id,
+        text,
+        timestamp: formatTimestamp(event.createdAt)
       })
       continue
     }
@@ -391,6 +420,14 @@ export function AgentTranscript({
 
 function RenderedNode({ node }: { node: RenderNode }) {
   if (node.kind === 'prep') return <PrepRow payload={node.payload} />
+  if (node.kind === 'user') {
+    return (
+      <UserMessageCard
+        text={node.text}
+        timestamp={node.timestamp}
+      />
+    )
+  }
   if (node.kind === 'agent') {
     return (
       <AgentMessageCard
@@ -419,6 +456,41 @@ function RenderedNode({ node }: { node: RenderNode }) {
   if (node.kind === 'turn-complete') return null
 
   return null
+}
+
+function UserMessageCard({
+  text,
+  timestamp
+}: {
+  text: string
+  timestamp: string | null
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className='flex justify-end'
+    >
+      <div className='max-w-[85%] rounded-xl border border-muted-foreground/20 bg-muted/40 px-4 py-3'>
+        <div className='mb-1 flex items-center gap-2 font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>
+          <User
+            aria-hidden='true'
+            className='size-3'
+          />
+          <span>You</span>
+          {timestamp ? (
+            <span className='font-mono font-normal normal-case tracking-normal'>
+              · {timestamp}
+            </span>
+          ) : null}
+        </div>
+        <div className='prose prose-sm max-w-none text-[14px] leading-relaxed text-foreground dark:prose-invert'>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+        </div>
+      </div>
+    </motion.div>
+  )
 }
 
 function SystemRow({ children }: { children: ReactNode }) {

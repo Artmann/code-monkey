@@ -43,6 +43,13 @@
       "when": 1776500529979,
       "tag": "0005_sad_cyclops",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1776516293897,
+      "tag": "0006_wonderful_tomorrow_man",
+      "breakpoints": true
     }
   ]
 }

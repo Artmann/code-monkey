@@ -2,33 +2,20 @@ import { and, desc, eq, inArray, max } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import invariant from 'tiny-invariant'
 
+import type {
+  AgentProvider,
+  AgentThread,
+  NormalizedEvent
+} from '../agents/provider'
 import * as schema from '../database/schema'
 import type { EventBroker } from './event-broker'
 import type { MergeTaskInput, MergeTaskResult } from './merge'
 import type { ProviderSettings } from './provider-settings'
 import type { CreatedWorktree } from './worktree'
 
-export type AgentRunnerThread = {
-  readonly id: string | null
-  runStreamed: (input: string) => Promise<{
-    events: AsyncIterable<unknown>
-  }>
-}
-
-export type AgentThreadOptions = {
-  workingDirectory?: string
-  skipGitRepoCheck?: boolean
-  sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'
-  approvalPolicy?: 'never' | 'on-request' | 'on-failure' | 'untrusted'
-}
-
-export type AgentRunnerCodex = {
-  startThread: (options?: AgentThreadOptions) => AgentRunnerThread
-  resumeThread: (
-    threadId: string,
-    options?: AgentThreadOptions
-  ) => AgentRunnerThread
-}
+export type AgentRunnerThread = AgentThread
+export type { AgentThreadOptions } from '../agents/provider'
+export type AgentRunnerCodex = AgentProvider
 
 export type PersistedEvent = {
   createdAt: Date
@@ -57,7 +44,7 @@ export type ResolveProjectHeadResult = { branchName: string | null }
 export type AgentRunnerDependencies = {
   database: AgentRunnerDatabase
   broker: EventBroker<PersistedEvent>
-  createCodex: (settings: ProviderSettings) => Promise<AgentRunnerCodex>
+  createProvider: (settings: ProviderSettings) => Promise<AgentProvider>
   providerSettings: () => ProviderSettings | null
   worktree: {
     create: (args: AgentRunnerWorktreeInput) => Promise<CreatedWorktree>
@@ -74,6 +61,7 @@ export type StartResult = { threadId: string }
 
 export type AgentRunner = {
   start: (taskId: string) => Promise<StartResult>
+  restartThread: (taskId: string) => Promise<StartResult>
   startProjectThread: (
     projectId: string,
     initialMessage: string
@@ -85,14 +73,7 @@ export type AgentRunner = {
 
 const interruptionMessage = 'Interrupted by app exit'
 
-type SdkEvent = {
-  type: string
-  thread_id?: string
-  item?: unknown
-  message?: string
-  error?: { message: string }
-  usage?: unknown
-}
+type SdkEvent = NormalizedEvent
 
 const buildInitialPrompt = (task: {
   title: string
@@ -148,7 +129,7 @@ export const createAgentRunner = (
   const {
     database,
     broker,
-    createCodex,
+    createProvider,
     providerSettings,
     worktree,
     merge,
@@ -223,6 +204,7 @@ export const createAgentRunner = (
         .update(schema.threads)
         .set({
           codexThreadId: event.thread_id,
+          externalThreadId: event.thread_id,
           lastActivityAt: clock()
         })
         .where(eq(schema.threads.id, threadId))
@@ -290,7 +272,7 @@ export const createAgentRunner = (
 
     if (!settings) {
       throw new Error(
-        'Codex provider is not configured. Configure one in Settings before starting work.'
+        'Agent provider is not configured. Configure one in Settings before starting work.'
       )
     }
 
@@ -312,6 +294,7 @@ export const createAgentRunner = (
         .insert(schema.threads)
         .values({
           taskId: task.id,
+          provider: settings.kind,
           worktreePath: created.path,
           branchName: created.branch,
           baseBranch: created.baseBranch,
@@ -348,9 +331,125 @@ export const createAgentRunner = (
     })
 
     const prompt = buildInitialPrompt(task)
-    const codex = await createCodex(settings)
-    const thread = codex.startThread({
+    appendEvent(threadId, 'user_message', { text: prompt })
+
+    const provider = await createProvider(settings)
+    const thread = provider.startThread({
       workingDirectory: created.path,
+      skipGitRepoCheck: false,
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'never'
+    })
+
+    void (async () => {
+      try {
+        const { events } = await thread.runStreamed(prompt)
+
+        await runStream(threadId, task.id, events)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+
+        handleStreamEvent(threadId, task.id, { type: 'error', message })
+      }
+    })()
+
+    return { threadId }
+  }
+
+  const restartThread = async (taskId: string): Promise<StartResult> => {
+    const settings = providerSettings()
+
+    if (!settings) {
+      throw new Error(
+        'Agent provider is not configured. Configure one in Settings before starting a new chat.'
+      )
+    }
+
+    const loaded = loadTaskWithProject(database, taskId)
+
+    if (!loaded) {
+      throw new Error(`Task not found: ${taskId}`)
+    }
+
+    const { task } = loaded
+
+    const [previousThread] = database
+      .select()
+      .from(schema.threads)
+      .where(eq(schema.threads.taskId, task.id))
+      .orderBy(desc(schema.threads.createdAt))
+      .limit(1)
+      .all()
+
+    if (!previousThread) {
+      throw new Error(
+        `Task has no existing thread to restart: ${taskId}. Use Start Work first.`
+      )
+    }
+
+    if (
+      previousThread.status === 'running' ||
+      previousThread.status === 'starting'
+    ) {
+      throw new Error(
+        'Thread is still running. Wait for the agent to finish before starting a new chat.'
+      )
+    }
+
+    if (!previousThread.worktreePath) {
+      throw new Error(
+        `Previous thread has no working directory recorded: ${previousThread.id}.`
+      )
+    }
+
+    const workingDirectory = previousThread.worktreePath
+    const branchName = previousThread.branchName
+    const baseBranch = previousThread.baseBranch
+
+    const threadId = database.transaction((tx) => {
+      const [threadRow] = tx
+        .insert(schema.threads)
+        .values({
+          taskId: task.id,
+          provider: settings.kind,
+          worktreePath: workingDirectory,
+          branchName,
+          baseBranch,
+          status: 'running'
+        })
+        .returning()
+        .all()
+
+      invariant(threadRow, 'threads insert returned no row')
+
+      tx.insert(schema.threadEvents)
+        .values({
+          threadId: threadRow.id,
+          sequence: 0,
+          type: 'prep',
+          payload: JSON.stringify({
+            worktreePath: workingDirectory,
+            branchName,
+            baseBranch,
+            restart: true
+          })
+        })
+        .run()
+
+      tx.update(schema.tasks)
+        .set({ agentState: 'working', updatedAt: clock() })
+        .where(eq(schema.tasks.id, task.id))
+        .run()
+
+      return threadRow.id
+    })
+
+    const prompt = buildInitialPrompt(task)
+    appendEvent(threadId, 'user_message', { text: prompt })
+
+    const provider = await createProvider(settings)
+    const thread = provider.startThread({
+      workingDirectory,
       skipGitRepoCheck: false,
       sandboxMode: 'workspace-write',
       approvalPolicy: 'never'
@@ -386,7 +485,7 @@ export const createAgentRunner = (
 
     if (!settings) {
       throw new Error(
-        'Codex provider is not configured. Configure one in Settings before continuing.'
+        'Agent provider is not configured. Configure one in Settings before continuing.'
       )
     }
 
@@ -418,15 +517,26 @@ export const createAgentRunner = (
 
     setTaskAgentState(taskId, 'working')
 
-    const codex = await createCodex(settings)
-    const thread = threadRow.codexThreadId
-      ? codex.resumeThread(threadRow.codexThreadId, {
+    appendEvent(threadId, 'user_message', { text })
+
+    const provider = await createProvider(settings)
+    // Only resume when the stored external id belongs to the active provider.
+    // A null `provider` column predates the migration and is assumed to be
+    // Codex; if the user has switched providers since the last turn, we must
+    // start a fresh provider thread instead of resuming with a foreign id.
+    const threadProviderKind = threadRow.provider ?? 'codex'
+    const externalId =
+      threadProviderKind === settings.kind
+        ? (threadRow.externalThreadId ?? threadRow.codexThreadId ?? null)
+        : null
+    const thread = externalId
+      ? provider.resumeThread(externalId, {
           workingDirectory: threadRow.worktreePath,
           skipGitRepoCheck: false,
           sandboxMode: 'workspace-write',
           approvalPolicy: 'never'
         })
-      : codex.startThread({
+      : provider.startThread({
           workingDirectory: threadRow.worktreePath,
           skipGitRepoCheck: false,
           sandboxMode: 'workspace-write',
@@ -557,7 +667,7 @@ export const createAgentRunner = (
 
     if (!settings) {
       throw new Error(
-        'Codex provider is not configured. Configure one in Settings before starting work.'
+        'Agent provider is not configured. Configure one in Settings before starting work.'
       )
     }
 
@@ -581,6 +691,7 @@ export const createAgentRunner = (
         .values({
           taskId: null,
           projectId: project.id,
+          provider: settings.kind,
           worktreePath: project.directoryPath,
           branchName: head.branchName,
           baseBranch: null,
@@ -607,8 +718,10 @@ export const createAgentRunner = (
       return threadRow.id
     })
 
-    const codex = await createCodex(settings)
-    const thread = codex.startThread({
+    appendEvent(threadId, 'user_message', { text: initialMessage })
+
+    const provider = await createProvider(settings)
+    const thread = provider.startThread({
       workingDirectory: project.directoryPath,
       skipGitRepoCheck: false,
       sandboxMode: 'workspace-write',
@@ -632,6 +745,7 @@ export const createAgentRunner = (
 
   return {
     start,
+    restartThread,
     startProjectThread,
     continueThread,
     recoverOrphanedThreads,

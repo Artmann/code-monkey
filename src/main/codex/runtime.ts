@@ -1,5 +1,6 @@
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 
+import { createProvider } from '../agents/registry'
 import { getWorktreesDirectory } from '../database/paths'
 import * as schema from '../database/schema'
 import {
@@ -7,14 +8,12 @@ import {
   type AgentRunner,
   type PersistedEvent
 } from './agent-runner'
-import { createCodex } from './codex-client'
 import { generateMergeCommitMessage } from './commit-message'
 import {
   createEventBroker,
   type EventBroker
 } from './event-broker'
 import { mergeTaskBranch } from './merge'
-import { runOneOffAgent } from './one-off-agent'
 import {
   getProviderSettings,
   type SafeStorageLike
@@ -56,12 +55,12 @@ export const createCodexRuntime = (
 
     if (settings == null) return null
 
-    const codex = await createCodex(settings)
+    const provider = await createProvider(settings)
 
     return generateMergeCommitMessage(
       {
         runAgent: ({ prompt, workingDirectory }) =>
-          runOneOffAgent({ codex, prompt, workingDirectory })
+          provider.runOneOff({ prompt, workingDirectory })
       },
       input
     )
@@ -71,7 +70,7 @@ export const createCodexRuntime = (
     database,
     broker,
     providerSettings: () => getProviderSettings({ database, safeStorage }),
-    createCodex,
+    createProvider,
     worktree: {
       create: async (args) => createWorktree(worktreeDeps, args),
       remove: async (args) => removeWorktree(worktreeDeps, args)

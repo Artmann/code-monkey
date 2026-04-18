@@ -26,6 +26,9 @@ export const threadStatusValues = [
 ] as const
 export type ThreadStatus = (typeof threadStatusValues)[number]
 
+export const providerKindValues = ['codex', 'claude-code'] as const
+export type ProviderKind = (typeof providerKindValues)[number]
+
 export const projects = sqliteTable('projects', {
   id: text('id')
     .primaryKey()
@@ -83,6 +86,8 @@ export const threads = sqliteTable('threads', {
     onDelete: 'cascade'
   }),
   codexThreadId: text('codex_thread_id'),
+  externalThreadId: text('external_thread_id'),
+  provider: text('provider', { enum: providerKindValues }),
   worktreePath: text('worktree_path'),
   branchName: text('branch_name'),
   baseBranch: text('base_branch'),

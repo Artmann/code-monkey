@@ -7,11 +7,14 @@ import { describe, expect, test } from 'vitest'
 
 import invariant from 'tiny-invariant'
 
+import type {
+  AgentProvider,
+  AgentThread,
+  NormalizedEvent
+} from '../agents/provider'
 import * as schema from '../database/schema'
 import {
   createAgentRunner,
-  type AgentRunnerCodex,
-  type AgentRunnerThread,
   type PersistedEvent
 } from './agent-runner'
 import { createEventBroker, type EventBroker } from './event-broker'
@@ -88,7 +91,7 @@ const createEventChannel = () => {
 }
 
 type FakeThread = {
-  readonly handle: AgentRunnerThread
+  readonly handle: AgentThread
   options: {
     workingDirectory?: string
     skipGitRepoCheck?: boolean
@@ -114,14 +117,16 @@ const createFakeThread = (
   let id: string | null = resumedFromId
   const inputs: string[] = []
 
-  const handle: AgentRunnerThread = {
+  const handle: AgentThread = {
     get id() {
       return id
     },
     runStreamed: async (input) => {
       inputs.push(typeof input === 'string' ? input : JSON.stringify(input))
 
-      return { events: channel.iterable as AsyncIterable<unknown> }
+      return {
+        events: channel.iterable as unknown as AsyncIterable<NormalizedEvent>
+      }
     }
   }
 
@@ -145,13 +150,13 @@ const createFakeThread = (
 
 type FakeCodexRegistry = {
   threads: FakeThread[]
-  codex: AgentRunnerCodex
+  provider: AgentProvider
 }
 
 const createFakeCodex = (): FakeCodexRegistry => {
   const threads: FakeThread[] = []
 
-  const codex: AgentRunnerCodex = {
+  const provider: AgentProvider = {
     startThread: (options) => {
       const thread = createFakeThread(options ?? {})
 
@@ -168,7 +173,7 @@ const createFakeCodex = (): FakeCodexRegistry => {
     }
   }
 
-  return { threads, codex }
+  return { threads, provider }
 }
 
 const createTestDatabase = (): TestDatabase => {
@@ -247,7 +252,7 @@ const createHarness = (): Harness => {
   const fake = createFakeCodex()
   const broker = createEventBroker<PersistedEvent>()
   const providerSettings: { current: ProviderSettings | null } = {
-    current: { mode: 'cli', binaryPath: null }
+    current: { kind: 'codex', mode: 'cli', binaryPath: null }
   }
   const creations: Harness['worktreeCreations'] = []
   const mergeCalls: MergeTaskInput[] = []
@@ -271,7 +276,7 @@ const createHarness = (): Harness => {
   const runner = createAgentRunner({
     database,
     broker,
-    createCodex: async () => fake.codex,
+    createProvider: async () => fake.provider,
     providerSettings: () => providerSettings.current,
     worktree: {
       create: async (args) => {
@@ -343,7 +348,7 @@ describe('createAgentRunner', () => {
       const { task } = seedProjectAndTask(harness.database)
 
       await expect(harness.runner.start(task.id)).rejects.toThrow(
-        /codex.*not configured|provider.*not configured/i
+        /provider.*not configured/i
       )
     })
 
@@ -373,16 +378,42 @@ describe('createAgentRunner', () => {
       expect(thread?.branchName).toEqual(`code-monkey/${task.id}`)
       expect(thread?.baseBranch).toEqual('main')
 
+      await waitFor(
+        () => getThreadEvents(harness.database, result.threadId).length >= 2
+      )
+
       const events = getThreadEvents(harness.database, result.threadId)
 
-      expect(events).toHaveLength(1)
       expect(events.at(0)?.type).toEqual('prep')
       expect(events.at(0)?.sequence).toEqual(0)
+      expect(events.at(1)?.type).toEqual('user_message')
 
       const updatedTask = getTaskRow(harness.database, task.id)
 
       expect(updatedTask?.status).toEqual('in_progress')
       expect(updatedTask?.agentState).toEqual('working')
+    })
+
+    test('emits a user_message event with the task prompt before streaming', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      const { threadId } = await harness.runner.start(task.id)
+
+      await waitFor(
+        () => getThreadEvents(harness.database, threadId).length >= 2
+      )
+
+      const events = getThreadEvents(harness.database, threadId)
+      const userEvent = events.find(
+        (event) => event.type === 'user_message'
+      )
+
+      invariant(userEvent, 'user_message event missing')
+
+      const payload = JSON.parse(userEvent.payload) as { text?: string }
+
+      expect(payload.text).toEqual('Fix the bug\n\nSomething is broken')
     })
 
     test('passes the worktree path as workingDirectory to the SDK', async () => {
@@ -445,7 +476,7 @@ describe('createAgentRunner', () => {
       )
     })
 
-    test('captures codex thread id from the thread.started event', async () => {
+    test('captures external thread id from the thread.started event', async () => {
       const harness = createHarness()
       const { task } = seedProjectAndTask(harness.database)
 
@@ -463,9 +494,14 @@ describe('createAgentRunner', () => {
 
       await waitFor(
         () =>
-          getThreadRow(harness.database, threadId)?.codexThreadId ===
+          getThreadRow(harness.database, threadId)?.externalThreadId ===
           'codex-xyz'
       )
+
+      const row = getThreadRow(harness.database, threadId)
+
+      expect(row?.codexThreadId).toEqual('codex-xyz')
+      expect(row?.provider).toEqual('codex')
     })
 
     test('persists streamed events and publishes them through the broker', async () => {
@@ -492,17 +528,18 @@ describe('createAgentRunner', () => {
       })
 
       await waitFor(
-        () => getThreadEvents(harness.database, threadId).length >= 3
+        () => getThreadEvents(harness.database, threadId).length >= 4
       )
 
       const events = getThreadEvents(harness.database, threadId)
 
       expect(events.map((event) => event.type)).toEqual([
         'prep',
+        'user_message',
         'thread.started',
         'item.completed'
       ])
-      expect(events.map((event) => event.sequence)).toEqual([0, 1, 2])
+      expect(events.map((event) => event.sequence)).toEqual([0, 1, 2, 3])
       expect(received.map((event) => event.type)).toContain('item.completed')
     })
 
@@ -557,6 +594,111 @@ describe('createAgentRunner', () => {
     })
   })
 
+  describe('restartThread', () => {
+    test('creates a new thread reusing the existing worktree and flips task to working', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      const { threadId: firstId } = await harness.runner.start(task.id)
+
+      await waitFor(() => harness.threads.length === 1)
+
+      const [firstThread] = harness.threads
+
+      invariant(firstThread, 'first thread missing')
+      firstThread.emit({ type: 'thread.started', thread_id: 'codex-1' })
+      firstThread.emit({ type: 'turn.completed' })
+
+      await waitFor(
+        () => getThreadRow(harness.database, firstId)?.status === 'idle'
+      )
+
+      const firstRow = getThreadRow(harness.database, firstId)
+
+      invariant(firstRow, 'first row missing')
+
+      const result = await harness.runner.restartThread(task.id)
+
+      expect(result.threadId).not.toEqual(firstId)
+
+      const newRow = getThreadRow(harness.database, result.threadId)
+
+      expect(newRow?.worktreePath).toEqual(firstRow.worktreePath)
+      expect(newRow?.branchName).toEqual(firstRow.branchName)
+      expect(newRow?.baseBranch).toEqual(firstRow.baseBranch)
+      expect(newRow?.status).toEqual('running')
+
+      // No new worktree.create call beyond the initial start.
+      expect(harness.worktreeCreations).toHaveLength(1)
+
+      const updatedTask = getTaskRow(harness.database, task.id)
+
+      expect(updatedTask?.agentState).toEqual('working')
+
+      const events = getThreadEvents(harness.database, result.threadId)
+      const prep = events.find((event) => event.type === 'prep')
+
+      invariant(prep, 'prep event missing')
+
+      const prepPayload = JSON.parse(prep.payload) as { restart?: boolean }
+
+      expect(prepPayload.restart).toEqual(true)
+
+      await waitFor(() => harness.threads.length === 2)
+
+      const [, secondThread] = harness.threads
+
+      invariant(secondThread, 'second thread missing')
+      // The agent was started fresh (no resume) with the task prompt.
+      expect(secondThread.inputs.at(0)).toEqual(
+        'Fix the bug\n\nSomething is broken'
+      )
+      expect(secondThread.handle.id).toBeNull()
+    })
+
+    test('refuses to restart while the prior thread is still running', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      await harness.runner.start(task.id)
+
+      await expect(harness.runner.restartThread(task.id)).rejects.toThrow(
+        /still running/i
+      )
+    })
+
+    test('throws when the task has no prior thread', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      await expect(harness.runner.restartThread(task.id)).rejects.toThrow(
+        /no existing thread/i
+      )
+    })
+
+    test('throws when no provider is configured', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      const { threadId } = await harness.runner.start(task.id)
+
+      await waitFor(() => harness.threads.length === 1)
+      const [firstThread] = harness.threads
+      invariant(firstThread, 'first thread missing')
+      firstThread.emit({ type: 'turn.completed' })
+
+      await waitFor(
+        () => getThreadRow(harness.database, threadId)?.status === 'idle'
+      )
+
+      harness.providerSettings.current = null
+
+      await expect(harness.runner.restartThread(task.id)).rejects.toThrow(
+        /provider.*not configured/i
+      )
+    })
+  })
+
   describe('continueThread', () => {
     test('resumes the codex thread and streams new events', async () => {
       const harness = createHarness()
@@ -595,6 +737,76 @@ describe('createAgentRunner', () => {
           'hi'
         )
       ).rejects.toThrow(/thread.*not found/i)
+    })
+
+    test('starts a fresh provider thread when the active provider differs from the stored one', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      // Initial run under Codex.
+      harness.providerSettings.current = {
+        kind: 'codex',
+        mode: 'cli',
+        binaryPath: null
+      }
+
+      const { threadId } = await harness.runner.start(task.id)
+
+      await waitFor(() => harness.threads.length === 1)
+      const [firstThread] = harness.threads
+      invariant(firstThread, 'first thread missing')
+      firstThread.emit({ type: 'thread.started', thread_id: 'codex-xyz' })
+      firstThread.emit({ type: 'turn.completed' })
+
+      await waitFor(
+        () => getThreadRow(harness.database, threadId)?.status === 'idle'
+      )
+
+      // User switches to Claude Code before the follow-up.
+      harness.providerSettings.current = {
+        kind: 'claude-code',
+        mode: 'cli',
+        executablePath: null
+      }
+
+      await harness.runner.continueThread(threadId, 'and now under claude')
+
+      await waitFor(() => harness.threads.length === 2)
+
+      const secondThread = harness.threads.at(1)
+
+      invariant(secondThread, 'second thread missing')
+      // Fresh thread (not resumed) because the external id belongs to Codex.
+      expect(secondThread.handle.id).toBeNull()
+    })
+
+    test('emits a user_message event with the follow-up text', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      const { threadId } = await harness.runner.start(task.id)
+
+      await waitFor(() => harness.threads.length === 1)
+      const [firstThread] = harness.threads
+      invariant(firstThread, 'first thread missing')
+      firstThread.emit({ type: 'thread.started', thread_id: 'codex-1' })
+      firstThread.emit({ type: 'turn.completed' })
+
+      await waitFor(
+        () => getThreadRow(harness.database, threadId)?.status === 'idle'
+      )
+
+      await harness.runner.continueThread(threadId, 'also add tests')
+
+      await waitFor(() =>
+        getThreadEvents(harness.database, threadId).some((event) => {
+          if (event.type !== 'user_message') return false
+
+          const payload = JSON.parse(event.payload) as { text?: string }
+
+          return payload.text === 'also add tests'
+        })
+      )
     })
   })
 
@@ -791,10 +1003,14 @@ describe('createAgentRunner', () => {
       expect(thread?.branchName).toEqual('main')
       expect(thread?.baseBranch).toBeNull()
 
+      await waitFor(
+        () => getThreadEvents(harness.database, result.threadId).length >= 2
+      )
+
       const events = getThreadEvents(harness.database, result.threadId)
 
-      expect(events).toHaveLength(1)
       expect(events.at(0)?.type).toEqual('prep')
+      expect(events.at(1)?.type).toEqual('user_message')
 
       expect(harness.projectHeadCalls).toEqual([project.directoryPath])
       expect(harness.worktreeCreations).toHaveLength(0)

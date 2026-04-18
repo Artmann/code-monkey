@@ -102,6 +102,9 @@ const createFakeRunner = (
 
     return { threadId: thread.id }
   },
+  restartThread: async () => {
+    throw new Error('not used in tasks tests')
+  },
   startProjectThread: async () => {
     throw new Error('not used in tasks tests')
   },

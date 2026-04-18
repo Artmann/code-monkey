@@ -60,7 +60,7 @@ describe('settings routes', () => {
     expect(await response.json()).toEqual({ provider: null })
   })
 
-  test('POST /provider saves CLI mode', async () => {
+  test('POST /provider saves Codex CLI mode (kind defaults to codex)', async () => {
     const response = await buildRoutes().request('/provider', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -69,32 +69,74 @@ describe('settings routes', () => {
 
     expect(response.status).toEqual(200)
     expect(await response.json()).toEqual({
-      provider: { mode: 'cli', binaryPath: '/usr/bin/codex' }
+      provider: { kind: 'codex', mode: 'cli', binaryPath: '/usr/bin/codex' }
     })
 
     const follow = await buildRoutes().request('/provider')
 
     expect(await follow.json()).toEqual({
-      provider: { mode: 'cli', binaryPath: '/usr/bin/codex' }
+      provider: { kind: 'codex', mode: 'cli', binaryPath: '/usr/bin/codex' }
     })
   })
 
-  test('POST /provider saves API mode and never echoes the key', async () => {
+  test('POST /provider saves Codex API mode and never echoes the key', async () => {
     const response = await buildRoutes().request('/provider', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mode: 'api', apiKey: 'sk-secret' })
+      body: JSON.stringify({
+        kind: 'codex',
+        mode: 'api',
+        apiKey: 'sk-secret'
+      })
     })
 
     expect(response.status).toEqual(200)
     expect(await response.json()).toEqual({
-      provider: { mode: 'api', hasApiKey: true }
+      provider: { kind: 'codex', mode: 'api', hasApiKey: true }
     })
 
     const follow = await buildRoutes().request('/provider')
 
     expect(await follow.json()).toEqual({
-      provider: { mode: 'api', hasApiKey: true }
+      provider: { kind: 'codex', mode: 'api', hasApiKey: true }
+    })
+  })
+
+  test('POST /provider saves Claude Code CLI mode with an executable path', async () => {
+    const response = await buildRoutes().request('/provider', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'claude-code',
+        mode: 'cli',
+        executablePath: '/opt/claude/bin/claude'
+      })
+    })
+
+    expect(response.status).toEqual(200)
+    expect(await response.json()).toEqual({
+      provider: {
+        kind: 'claude-code',
+        mode: 'cli',
+        executablePath: '/opt/claude/bin/claude'
+      }
+    })
+  })
+
+  test('POST /provider saves Claude Code API mode', async () => {
+    const response = await buildRoutes().request('/provider', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'claude-code',
+        mode: 'api',
+        apiKey: 'sk-ant-secret'
+      })
+    })
+
+    expect(response.status).toEqual(200)
+    expect(await response.json()).toEqual({
+      provider: { kind: 'claude-code', mode: 'api', hasApiKey: true }
     })
   })
 

@@ -108,6 +108,26 @@ export const createThreadsRoutes = (
     }
   })
 
+  routes.post('/tasks/:taskId/threads/restart', async (context) => {
+    const taskId = context.req.param('taskId')
+
+    try {
+      const { threadId } = await runner.restartThread(taskId)
+
+      const thread = database
+        .select()
+        .from(schema.threads)
+        .where(eq(schema.threads.id, threadId))
+        .get()
+
+      return context.json({ thread }, 201)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      return context.json({ error: message }, 400)
+    }
+  })
+
   routes.post('/tasks/:taskId/merge', async (context) => {
     const taskId = context.req.param('taskId')
 

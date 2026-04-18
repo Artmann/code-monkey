@@ -60,6 +60,7 @@ const SUBSCRIBED_EVENT_TYPES = [
   'item.started',
   'item.updated',
   'item.completed',
+  'user_message',
   'error'
 ] as const
 
@@ -176,6 +177,36 @@ export function useStartThreadMutation() {
     mutationFn: async (taskId: string) => {
       const data = await apiFetch<StartThreadResponse>(
         `/tasks/${taskId}/threads`,
+        { method: 'POST' }
+      )
+
+      return data.thread
+    },
+    onSuccess: (thread) => {
+      queryClient.setQueryData<ThreadResponse | null>(threadKey(thread.id), {
+        thread,
+        events: []
+      })
+
+      if (thread.taskId) {
+        void queryClient.invalidateQueries({
+          queryKey: taskThreadsKey(thread.taskId)
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ['tasks', thread.taskId]
+        })
+      }
+    }
+  })
+}
+
+export function useRestartThreadMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      const data = await apiFetch<StartThreadResponse>(
+        `/tasks/${taskId}/threads/restart`,
         { method: 'POST' }
       )
 

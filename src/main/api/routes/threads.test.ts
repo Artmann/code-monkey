@@ -116,12 +116,15 @@ const seedProjectThread = (database: TestDatabase, projectId: string) => {
 
 type FakeRunnerState = {
   startCalls: string[]
+  restartCalls: string[]
   startProjectCalls: Array<{ projectId: string; text: string }>
   continueCalls: Array<{ threadId: string; text: string }>
   mergeCalls: string[]
   threadId: string | null
+  restartThreadId: string | null
   projectThreadId: string | null
   mergeError: Error | null
+  restartError: Error | null
   startProjectError: Error | null
 }
 
@@ -135,6 +138,17 @@ const createFakeRunner = (
     const thread = seedThread(database, taskId)
 
     state.threadId = thread.id
+
+    return { threadId: thread.id }
+  },
+  restartThread: async (taskId) => {
+    state.restartCalls.push(taskId)
+
+    if (state.restartError) throw state.restartError
+
+    const thread = seedThread(database, taskId)
+
+    state.restartThreadId = thread.id
 
     return { threadId: thread.id }
   },
@@ -179,12 +193,15 @@ describe('threads routes', () => {
     broker = createEventBroker<PersistedEvent>()
     runnerState = {
       startCalls: [],
+      restartCalls: [],
       startProjectCalls: [],
       continueCalls: [],
       mergeCalls: [],
       threadId: null,
+      restartThreadId: null,
       projectThreadId: null,
       mergeError: null,
+      restartError: null,
       startProjectError: null
     }
     runner = createFakeRunner(database, runnerState)
@@ -238,6 +255,35 @@ describe('threads routes', () => {
       newer.id,
       older.id
     ])
+  })
+
+  test('POST /tasks/:taskId/threads/restart calls runner.restartThread', async () => {
+    const { task } = seedProjectAndTask(database)
+    const response = await buildRoutes().request(
+      `/tasks/${task.id}/threads/restart`,
+      { method: 'POST' }
+    )
+
+    expect(response.status).toEqual(201)
+
+    const body = (await response.json()) as { thread: { id: string } }
+
+    expect(body.thread.id).toEqual(runnerState.restartThreadId)
+    expect(runnerState.restartCalls).toEqual([task.id])
+  })
+
+  test('POST /tasks/:taskId/threads/restart returns 400 when the runner throws', async () => {
+    const { task } = seedProjectAndTask(database)
+
+    runnerState.restartError = new Error('still running')
+
+    const response = await buildRoutes().request(
+      `/tasks/${task.id}/threads/restart`,
+      { method: 'POST' }
+    )
+
+    expect(response.status).toEqual(400)
+    expect(await response.json()).toEqual({ error: 'still running' })
   })
 
   test('POST /tasks/:taskId/threads returns 500 when the runner throws', async () => {

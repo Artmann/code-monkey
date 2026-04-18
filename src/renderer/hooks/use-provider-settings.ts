@@ -2,13 +2,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiFetch } from '../lib/api-client'
 
+export type ProviderKind = 'codex' | 'claude-code'
+
 export type ProviderSettingsSummary =
-  | { mode: 'cli'; binaryPath: string | null }
-  | { mode: 'api'; hasApiKey: true }
+  | { kind: 'codex'; mode: 'cli'; binaryPath: string | null }
+  | { kind: 'codex'; mode: 'api'; hasApiKey: true }
+  | { kind: 'claude-code'; mode: 'cli'; executablePath: string | null }
+  | { kind: 'claude-code'; mode: 'api'; hasApiKey: true }
 
 export type SaveProviderInput =
-  | { mode: 'cli'; binaryPath?: string | null }
-  | { mode: 'api'; apiKey: string }
+  | { kind: 'codex'; mode: 'cli'; binaryPath?: string | null }
+  | { kind: 'codex'; mode: 'api'; apiKey: string }
+  | { kind: 'claude-code'; mode: 'cli'; executablePath?: string | null }
+  | { kind: 'claude-code'; mode: 'api'; apiKey: string }
 
 type ProviderResponse = {
   provider: ProviderSettingsSummary | null

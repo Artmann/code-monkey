@@ -102,7 +102,11 @@ describe('useSaveProviderMutation', () => {
     })
 
     await act(async () => {
-      await result.current.mutateAsync({ mode: 'api', apiKey: 'sk-secret' })
+      await result.current.mutateAsync({
+        kind: 'codex',
+        mode: 'api',
+        apiKey: 'sk-secret'
+      })
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -112,7 +116,7 @@ describe('useSaveProviderMutation', () => {
 
     expect(request?.method).toEqual('POST')
     expect(request?.body).toEqual(
-      JSON.stringify({ mode: 'api', apiKey: 'sk-secret' })
+      JSON.stringify({ kind: 'codex', mode: 'api', apiKey: 'sk-secret' })
     )
   })
 })

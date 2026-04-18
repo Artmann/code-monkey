@@ -1,6 +1,13 @@
 import type { Codex, CodexOptions } from '@openai/codex-sdk'
 
-import type { ProviderSettings } from './provider-settings'
+import type {
+  CodexApiProviderSettings,
+  CodexCliProviderSettings
+} from './provider-settings'
+
+export type CodexProviderSettings =
+  | CodexCliProviderSettings
+  | CodexApiProviderSettings
 
 export type BuiltCodexOptions = Pick<
   CodexOptions,
@@ -18,7 +25,7 @@ export type CodexSdkModule = {
 export type CodexSdkLoader = () => Promise<CodexSdkModule>
 
 export const buildCodexOptions = (
-  settings: ProviderSettings
+  settings: CodexProviderSettings
 ): BuiltCodexOptions => {
   if (settings.mode === 'cli') {
     if (settings.binaryPath == null || settings.binaryPath === '') {
@@ -38,7 +45,7 @@ const loadCodexSdk: CodexSdkLoader = async () => {
 }
 
 export const createCodex = async (
-  settings: ProviderSettings,
+  settings: CodexProviderSettings,
   loadSdk: CodexSdkLoader = loadCodexSdk
 ): Promise<CodexClient> => {
   const { Codex } = await loadSdk()

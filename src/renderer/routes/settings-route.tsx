@@ -8,6 +8,7 @@ import {
   useClearProviderMutation,
   useProviderSettingsQuery,
   useSaveProviderMutation,
+  type ProviderKind,
   type ProviderSettingsSummary
 } from '../hooks/use-provider-settings'
 import { useTheme } from '../hooks/use-theme'
@@ -42,16 +43,56 @@ const themeOptions: Array<{
 
 type Mode = 'cli' | 'api'
 
-const defaultBinaryPath = (summary: ProviderSettingsSummary | null) => {
-  if (summary?.mode === 'cli') return summary.binaryPath ?? ''
+const providerKindOptions: Array<{
+  value: ProviderKind
+  label: string
+  description: string
+}> = [
+  {
+    value: 'codex',
+    label: 'Codex',
+    description: 'OpenAI Codex CLI or API'
+  },
+  {
+    value: 'claude-code',
+    label: 'Claude Code',
+    description: 'Anthropic Claude Code CLI or API'
+  }
+]
+
+const defaultKind = (summary: ProviderSettingsSummary | null): ProviderKind => {
+  if (summary?.kind === 'claude-code') return 'claude-code'
+
+  return 'codex'
+}
+
+const defaultMode = (
+  summary: ProviderSettingsSummary | null,
+  kind: ProviderKind
+): Mode => {
+  if (summary?.kind === kind && summary.mode === 'api') return 'api'
+
+  return 'cli'
+}
+
+const defaultCodexBinaryPath = (
+  summary: ProviderSettingsSummary | null
+): string => {
+  if (summary?.kind === 'codex' && summary.mode === 'cli') {
+    return summary.binaryPath ?? ''
+  }
 
   return ''
 }
 
-const defaultMode = (summary: ProviderSettingsSummary | null): Mode => {
-  if (summary?.mode === 'api') return 'api'
+const defaultClaudeExecutablePath = (
+  summary: ProviderSettingsSummary | null
+): string => {
+  if (summary?.kind === 'claude-code' && summary.mode === 'cli') {
+    return summary.executablePath ?? ''
+  }
 
-  return 'cli'
+  return ''
 }
 
 export function SettingsRoute() {
@@ -62,32 +103,68 @@ export function SettingsRoute() {
 
   const summary = query.data ?? null
 
+  const [kindOverride, setKindOverride] = useState<ProviderKind | null>(null)
   const [modeOverride, setModeOverride] = useState<Mode | null>(null)
-  const [binaryPathOverride, setBinaryPathOverride] = useState<string | null>(
-    null
-  )
+  const [codexBinaryPathOverride, setCodexBinaryPathOverride] = useState<
+    string | null
+  >(null)
+  const [claudeExecutablePathOverride, setClaudeExecutablePathOverride] =
+    useState<string | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const mode = modeOverride ?? defaultMode(summary)
-  const binaryPath = binaryPathOverride ?? defaultBinaryPath(summary)
-  const setMode = (next: Mode) => setModeOverride(next)
-  const setBinaryPath = (next: string) => setBinaryPathOverride(next)
+  const kind = kindOverride ?? defaultKind(summary)
+  const mode = modeOverride ?? defaultMode(summary, kind)
+  const codexBinaryPath =
+    codexBinaryPathOverride ?? defaultCodexBinaryPath(summary)
+  const claudeExecutablePath =
+    claudeExecutablePathOverride ?? defaultClaudeExecutablePath(summary)
+
+  const selectKind = (next: ProviderKind) => {
+    setKindOverride(next)
+    setModeOverride(null)
+    setApiKey('')
+    setErrorMessage(null)
+  }
 
   const saving = save.isPending
-  const hasApiKey = summary?.mode === 'api' && summary.hasApiKey === true
+  const hasApiKey =
+    summary?.kind === kind && summary.mode === 'api' && summary.hasApiKey
+
+  const apiKeyLabel =
+    kind === 'codex' ? 'OpenAI API key' : 'Anthropic API key'
 
   const handleSave = async () => {
     setErrorMessage(null)
 
     try {
-      if (mode === 'cli') {
+      if (kind === 'codex') {
+        if (mode === 'cli') {
+          await save.mutateAsync({
+            kind: 'codex',
+            mode: 'cli',
+            binaryPath: codexBinaryPath.trim() || null
+          })
+        } else {
+          await save.mutateAsync({
+            kind: 'codex',
+            mode: 'api',
+            apiKey
+          })
+          setApiKey('')
+        }
+      } else if (mode === 'cli') {
         await save.mutateAsync({
+          kind: 'claude-code',
           mode: 'cli',
-          binaryPath: binaryPath.trim() || null
+          executablePath: claudeExecutablePath.trim() || null
         })
       } else {
-        await save.mutateAsync({ mode: 'api', apiKey })
+        await save.mutateAsync({
+          kind: 'claude-code',
+          mode: 'api',
+          apiKey
+        })
         setApiKey('')
       }
     } catch (error) {
@@ -162,40 +239,88 @@ export function SettingsRoute() {
 
       <section className='rounded-md border p-4'>
         <header className='mb-4 flex items-baseline justify-between'>
-          <h2 className='text-sm font-medium'>Provider: Codex</h2>
+          <h2 className='text-sm font-medium'>Agent provider</h2>
           {!summary && (
             <span className='text-xs text-[color:var(--ctp-yellow)]'>
               No provider configured
             </span>
           )}
           {summary && (
-            <span className='text-xs text-[color:var(--ctp-green)]'>Configured</span>
+            <span className='text-xs text-[color:var(--ctp-green)]'>
+              Configured
+            </span>
           )}
         </header>
 
+        <div
+          role='radiogroup'
+          aria-label='Provider'
+          className='mb-4 grid grid-cols-2 gap-2'
+        >
+          {providerKindOptions.map((option) => {
+            const selected = kind === option.value
+
+            return (
+              <button
+                key={option.value}
+                type='button'
+                role='radio'
+                aria-checked={selected}
+                aria-label={option.label}
+                onClick={() => selectKind(option.value)}
+                className={cn(
+                  'flex flex-col items-start gap-1 rounded-lg border bg-card px-3 py-2.5 text-left transition-colors',
+                  'hover:border-muted-foreground/50 hover:bg-accent/40',
+                  selected &&
+                    'border-banana bg-banana/10 hover:border-banana hover:bg-banana/10'
+                )}
+              >
+                <span className='text-sm font-medium'>{option.label}</span>
+                <span className='text-[11px] text-muted-foreground'>
+                  {option.description}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
         <fieldset className='space-y-4'>
-          <legend className='sr-only'>Codex authentication mode</legend>
+          <legend className='sr-only'>Authentication mode</legend>
 
           <label className='flex items-start gap-3'>
             <input
               type='radio'
-              name='codex-mode'
+              name='provider-mode'
               value='cli'
               checked={mode === 'cli'}
-              onChange={() => setMode('cli')}
+              onChange={() => setModeOverride('cli')}
               className='mt-1 h-4 w-4'
-              aria-label='Codex CLI'
+              aria-label={
+                kind === 'codex' ? 'Codex CLI' : 'Claude Code CLI'
+              }
             />
             <span className='flex-1'>
               <span className='block text-sm font-medium'>
-                Use installed Codex CLI
+                {kind === 'codex'
+                  ? 'Use installed Codex CLI'
+                  : 'Use installed Claude Code CLI'}
               </span>
               <span className='block text-xs text-muted-foreground'>
-                Reuses the `codex login` credentials from{' '}
-                <code className='font-mono'>~/.codex</code>. Optionally
-                override the binary path when codex is not on your PATH.
+                {kind === 'codex' ? (
+                  <>
+                    Reuses the `codex login` credentials from{' '}
+                    <code className='font-mono'>~/.codex</code>. Optionally
+                    override the binary path when codex is not on your PATH.
+                  </>
+                ) : (
+                  <>
+                    Reuses the `claude login` credentials from{' '}
+                    <code className='font-mono'>~/.claude</code>. Optionally
+                    override the executable path.
+                  </>
+                )}
               </span>
-              {mode === 'cli' && (
+              {mode === 'cli' && kind === 'codex' && (
                 <div className='mt-2 space-y-1'>
                   <Label
                     htmlFor='binary-path'
@@ -206,8 +331,28 @@ export function SettingsRoute() {
                   <Input
                     id='binary-path'
                     placeholder='/usr/local/bin/codex'
-                    value={binaryPath}
-                    onChange={(event) => setBinaryPath(event.target.value)}
+                    value={codexBinaryPath}
+                    onChange={(event) =>
+                      setCodexBinaryPathOverride(event.target.value)
+                    }
+                  />
+                </div>
+              )}
+              {mode === 'cli' && kind === 'claude-code' && (
+                <div className='mt-2 space-y-1'>
+                  <Label
+                    htmlFor='executable-path'
+                    className='text-xs'
+                  >
+                    Executable path (optional)
+                  </Label>
+                  <Input
+                    id='executable-path'
+                    placeholder='/usr/local/bin/claude'
+                    value={claudeExecutablePath}
+                    onChange={(event) =>
+                      setClaudeExecutablePathOverride(event.target.value)
+                    }
                   />
                 </div>
               )}
@@ -217,20 +362,20 @@ export function SettingsRoute() {
           <label className='flex items-start gap-3'>
             <input
               type='radio'
-              name='codex-mode'
+              name='provider-mode'
               value='api'
               checked={mode === 'api'}
-              onChange={() => setMode('api')}
+              onChange={() => setModeOverride('api')}
               className='mt-1 h-4 w-4'
-              aria-label='OpenAI API key'
+              aria-label={apiKeyLabel}
             />
             <span className='flex-1'>
               <span className='block text-sm font-medium'>
-                Use OpenAI API key
+                Use {apiKeyLabel}
               </span>
               <span className='block text-xs text-muted-foreground'>
-                Stored encrypted via your OS keychain (Electron
-                safeStorage). The key never leaves the device.
+                Stored encrypted via your OS keychain (Electron safeStorage).
+                The key never leaves the device.
               </span>
               {mode === 'api' && (
                 <div className='mt-2 space-y-1'>
@@ -243,15 +388,14 @@ export function SettingsRoute() {
                   <Input
                     id='api-key'
                     type='password'
-                    placeholder='sk-...'
+                    placeholder={kind === 'codex' ? 'sk-...' : 'sk-ant-...'}
                     value={apiKey}
                     onChange={(event) => setApiKey(event.target.value)}
                     autoComplete='off'
                   />
                   {hasApiKey && (
                     <p className='text-xs text-[color:var(--ctp-green)]'>
-                      An API key is stored. Enter a new value to replace
-                      it.
+                      An API key is stored. Enter a new value to replace it.
                     </p>
                   )}
                 </div>

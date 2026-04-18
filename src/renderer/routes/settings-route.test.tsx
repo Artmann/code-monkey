@@ -30,10 +30,10 @@ describe('SettingsRoute', () => {
     ).toBeInTheDocument()
   })
 
-  test('renders the current CLI configuration', async () => {
+  test('renders the current Codex CLI configuration', async () => {
     mockFetchJson({
       '/settings/provider': {
-        provider: { mode: 'cli', binaryPath: '/usr/bin/codex' }
+        provider: { kind: 'codex', mode: 'cli', binaryPath: '/usr/bin/codex' }
       }
     })
 
@@ -60,7 +60,7 @@ describe('SettingsRoute', () => {
       if (path === '/settings/provider' && init?.method === 'POST') {
         return new Response(
           JSON.stringify({
-            provider: { mode: 'api', hasApiKey: true }
+            provider: { kind: 'codex', mode: 'api', hasApiKey: true }
           }),
           {
             status: 200,
@@ -90,7 +90,11 @@ describe('SettingsRoute', () => {
         expect.any(String),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ mode: 'api', apiKey: 'sk-secret' })
+          body: JSON.stringify({
+            kind: 'codex',
+            mode: 'api',
+            apiKey: 'sk-secret'
+          })
         })
       )
     })
@@ -98,6 +102,63 @@ describe('SettingsRoute', () => {
     expect(
       await screen.findByText(/api key is stored/i)
     ).toBeInTheDocument()
+  })
+
+  test('selecting Claude Code and saving Anthropic API key POSTs the right body', async () => {
+    const user = userEvent.setup()
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      const path = new URL(url).pathname
+
+      if (path === '/settings/provider' && (init?.method ?? 'GET') === 'GET') {
+        return new Response(JSON.stringify({ provider: null }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      if (path === '/settings/provider' && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({
+            provider: { kind: 'claude-code', mode: 'api', hasApiKey: true }
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        )
+      }
+
+      return new Response('nope', { status: 404 })
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderWithProviders(<SettingsRoute />, { initialEntries: ['/settings'] })
+
+    await screen.findByText(/no provider configured/i)
+
+    await user.click(screen.getByRole('radio', { name: /^claude code$/i }))
+    await user.click(
+      screen.getByRole('radio', { name: /anthropic api key/i })
+    )
+    await user.type(screen.getByLabelText(/^api key$/i), 'sk-ant-secret')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            kind: 'claude-code',
+            mode: 'api',
+            apiKey: 'sk-ant-secret'
+          })
+        })
+      )
+    })
   })
 
   test('surfaces server error messages', async () => {

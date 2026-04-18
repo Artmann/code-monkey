@@ -4,7 +4,10 @@ import { describe, expect, test, vi } from 'vitest'
 
 import type { Thread } from '../hooks/use-thread'
 import { buildTask, renderWithProviders } from '../test-utils'
-import { AgentHeaderControls } from './agent-header-controls'
+import {
+  AgentHeaderControls,
+  type AgentHeaderControlsProps
+} from './agent-header-controls'
 
 const buildThread = (overrides: Partial<Thread> = {}): Thread => ({
   id: 'thread-1',
@@ -21,21 +24,28 @@ const buildThread = (overrides: Partial<Thread> = {}): Thread => ({
   ...overrides
 })
 
+const baseProps = (
+  overrides: Partial<AgentHeaderControlsProps> = {}
+): AgentHeaderControlsProps => ({
+  task: buildTask({ status: 'todo' }),
+  thread: null,
+  providerConfigured: true,
+  onStartWork: () => undefined,
+  onRestartChat: () => undefined,
+  onMerge: () => undefined,
+  isStarting: false,
+  isRestarting: false,
+  isMerging: false,
+  ...overrides
+})
+
 describe('AgentHeaderControls', () => {
   test('shows Start Work when there is no thread and the provider is configured', async () => {
     const onStartWork = vi.fn()
     const user = userEvent.setup()
 
     renderWithProviders(
-      <AgentHeaderControls
-        task={buildTask({ status: 'todo' })}
-        thread={null}
-        providerConfigured={true}
-        onStartWork={onStartWork}
-        onMerge={() => undefined}
-        isStarting={false}
-        isMerging={false}
-      />
+      <AgentHeaderControls {...baseProps({ onStartWork })} />
     )
 
     const button = screen.getByRole('button', { name: /start work/i })
@@ -49,15 +59,7 @@ describe('AgentHeaderControls', () => {
 
   test('disables Start Work when the provider is not configured', () => {
     renderWithProviders(
-      <AgentHeaderControls
-        task={buildTask({ status: 'todo' })}
-        thread={null}
-        providerConfigured={false}
-        onStartWork={() => undefined}
-        onMerge={() => undefined}
-        isStarting={false}
-        isMerging={false}
-      />
+      <AgentHeaderControls {...baseProps({ providerConfigured: false })} />
     )
 
     expect(
@@ -67,15 +69,7 @@ describe('AgentHeaderControls', () => {
 
   test('disables Start Work while starting', () => {
     renderWithProviders(
-      <AgentHeaderControls
-        task={buildTask({ status: 'todo' })}
-        thread={null}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onMerge={() => undefined}
-        isStarting={true}
-        isMerging={false}
-      />
+      <AgentHeaderControls {...baseProps({ isStarting: true })} />
     )
 
     expect(
@@ -83,41 +77,42 @@ describe('AgentHeaderControls', () => {
     ).toBeDisabled()
   })
 
-  test('shows Merge to Main when a thread exists and the task is not done', async () => {
+  test('shows Merge to Main and New chat when a thread exists and the task is not done', async () => {
     const onMerge = vi.fn()
+    const onRestartChat = vi.fn()
     const user = userEvent.setup()
 
     renderWithProviders(
       <AgentHeaderControls
-        task={buildTask({ status: 'in_progress' })}
-        thread={buildThread({ status: 'idle' })}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onMerge={onMerge}
-        isStarting={false}
-        isMerging={false}
+        {...baseProps({
+          task: buildTask({ status: 'in_progress' }),
+          thread: buildThread({ status: 'idle' }),
+          onMerge,
+          onRestartChat
+        })}
       />
     )
 
-    const button = screen.getByRole('button', { name: /merge to main/i })
+    const merge = screen.getByRole('button', { name: /merge to main/i })
+    const restart = screen.getByRole('button', { name: /start new chat/i })
 
-    expect(button).toBeEnabled()
+    expect(merge).toBeEnabled()
+    expect(restart).toBeEnabled()
 
-    await user.click(button)
+    await user.click(merge)
+    await user.click(restart)
 
     expect(onMerge).toHaveBeenCalledTimes(1)
+    expect(onRestartChat).toHaveBeenCalledTimes(1)
   })
 
   test('disables Merge to Main while the thread is running', () => {
     renderWithProviders(
       <AgentHeaderControls
-        task={buildTask({ status: 'in_progress' })}
-        thread={buildThread({ status: 'running' })}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onMerge={() => undefined}
-        isStarting={false}
-        isMerging={false}
+        {...baseProps({
+          task: buildTask({ status: 'in_progress' }),
+          thread: buildThread({ status: 'running' })
+        })}
       />
     )
 
@@ -126,16 +121,44 @@ describe('AgentHeaderControls', () => {
     ).toBeDisabled()
   })
 
+  test('disables New chat while the thread is running', () => {
+    renderWithProviders(
+      <AgentHeaderControls
+        {...baseProps({
+          task: buildTask({ status: 'in_progress' }),
+          thread: buildThread({ status: 'running' })
+        })}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: /start new chat/i })
+    ).toBeDisabled()
+  })
+
+  test('disables New chat while restarting', () => {
+    renderWithProviders(
+      <AgentHeaderControls
+        {...baseProps({
+          task: buildTask({ status: 'in_progress' }),
+          thread: buildThread({ status: 'idle' }),
+          isRestarting: true
+        })}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: /start new chat/i })
+    ).toBeDisabled()
+  })
+
   test('disables Merge to Main while the agent state is working', () => {
     renderWithProviders(
       <AgentHeaderControls
-        task={buildTask({ status: 'in_progress', agentState: 'working' })}
-        thread={buildThread({ status: 'idle' })}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onMerge={() => undefined}
-        isStarting={false}
-        isMerging={false}
+        {...baseProps({
+          task: buildTask({ status: 'in_progress', agentState: 'working' }),
+          thread: buildThread({ status: 'idle' })
+        })}
       />
     )
 
@@ -147,13 +170,11 @@ describe('AgentHeaderControls', () => {
   test('disables Merge to Main while merging', () => {
     renderWithProviders(
       <AgentHeaderControls
-        task={buildTask({ status: 'in_progress' })}
-        thread={buildThread({ status: 'idle' })}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onMerge={() => undefined}
-        isStarting={false}
-        isMerging={true}
+        {...baseProps({
+          task: buildTask({ status: 'in_progress' }),
+          thread: buildThread({ status: 'idle' }),
+          isMerging: true
+        })}
       />
     )
 
@@ -165,13 +186,10 @@ describe('AgentHeaderControls', () => {
   test('renders nothing when the task is done', () => {
     const { container } = renderWithProviders(
       <AgentHeaderControls
-        task={buildTask({ status: 'done' })}
-        thread={buildThread({ status: 'idle' })}
-        providerConfigured={true}
-        onStartWork={() => undefined}
-        onMerge={() => undefined}
-        isStarting={false}
-        isMerging={false}
+        {...baseProps({
+          task: buildTask({ status: 'done' }),
+          thread: buildThread({ status: 'idle' })
+        })}
       />
     )
 
