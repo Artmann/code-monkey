@@ -10,39 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  bun:
-    name: bun / ${{ matrix.check }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        check: [typecheck, lint, test:run]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      # Node is present on the runner by default; pin it for deterministic
-      # native-module builds so `npm rebuild` below targets a known ABI.
-      - name: Setup Node (for native rebuild)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies (bun)
-        run: bun install --frozen-lockfile
-
-      - name: Rebuild native modules
-        if: matrix.check == 'test:run'
-        run: npm rebuild better-sqlite3
-
-      - name: Run ${{ matrix.check }}
-        run: bun run ${{ matrix.check }}
-
-  node:
+  check:
     name: node ${{ matrix.node-version }} / ${{ matrix.check }}
     runs-on: ubuntu-latest
     strategy:
@@ -53,22 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bun-version: latest
+          version: 10
+          run_install: false
 
       - name: Setup Node ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+          cache: pnpm
 
-      - name: Install dependencies (bun)
-        run: bun install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Rebuild native modules for Node ${{ matrix.node-version }}
         if: matrix.check == 'test:run'
-        run: npm rebuild better-sqlite3
+        run: pnpm rebuild better-sqlite3
 
       - name: Run ${{ matrix.check }}
-        run: npm run ${{ matrix.check }}
+        run: pnpm run ${{ matrix.check }}

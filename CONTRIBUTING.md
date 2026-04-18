@@ -20,11 +20,11 @@ instead.
 
 ## Setup
 
-Install **Bun** (or pnpm on Node 22+), then:
+Install **pnpm** on Node 22+, then:
 
 ```sh
-bun install      # or: pnpm install
-bun run start    # launches electron-forge in dev mode
+pnpm install
+pnpm start       # launches electron-forge in dev mode
 ```
 
 better-sqlite3 is a native module. It must be compiled against Electron's
@@ -33,7 +33,7 @@ tests fail with `NODE_MODULE_VERSION ...` mismatch, rebuild:
 
 ```sh
 rm -rf node_modules/better-sqlite3/build
-bun run rebuild better-sqlite3
+pnpm rebuild better-sqlite3
 ```
 
 ## Project layout
@@ -61,12 +61,12 @@ src/
 Run these before opening a PR:
 
 ```sh
-bun run typecheck
-bun run lint
-bun run test:run
+pnpm typecheck
+pnpm lint
+pnpm test:run
 ```
 
-All three must be clean. CI runs the same checks on Bun and Node 22 / 24;
+All three must be clean. CI runs the same checks on Node 22 and Node 24;
 see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Coding conventions
@@ -87,7 +87,7 @@ Most conventions live in [`AGENTS.md`](./AGENTS.md). Highlights:
 Never write ad-hoc SQL. The flow is:
 
 1. Edit `src/main/database/schema.ts`.
-2. Run `bun run db:generate` — drizzle-kit emits
+2. Run `pnpm db:generate` — drizzle-kit emits
    `src/main/database/migrations/NNNN_<tag>.sql` and a meta snapshot.
 3. Read the generated SQL. SQLite can't drop `NOT NULL` in place, so drizzle
    emits a `__new_table` rebuild; verify its `INSERT INTO __new_table SELECT

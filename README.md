@@ -31,8 +31,7 @@ transcripts never leave the machine.
 
 ## Requirements
 
-- [Bun](https://bun.com/) (recommended) or [pnpm](https://pnpm.io/) with
-  Node.js **22** or **24**
+- [pnpm](https://pnpm.io/) with Node.js **22** or **24**
 - Git on your `PATH`
 - One of:
   - [OpenAI Codex CLI](https://github.com/openai/codex) logged in (the app
@@ -42,15 +41,13 @@ transcripts never leave the machine.
 ## Installation
 
 ```sh
-bun install
+pnpm install
 ```
-
-(or `pnpm install` if you prefer pnpm)
 
 ## Running the app
 
 ```sh
-bun run start
+pnpm start
 ```
 
 On first launch, open **Settings** and configure the Codex provider (CLI
@@ -59,17 +56,17 @@ disk.
 
 ## Scripts
 
-| Script              | What it does                                   |
-| ------------------- | ---------------------------------------------- |
-| `bun run start`     | Launch the Electron dev build via electron-forge |
-| `bun run test`      | Run vitest in watch mode                       |
-| `bun run test:run`  | Run the full test suite once                   |
-| `bun run lint`      | Run ESLint across `src/`                       |
-| `bun run typecheck` | Run `tsc --noEmit`                             |
-| `bun run db:generate` | Generate a drizzle migration from `schema.ts` |
-| `bun run package`   | Produce an unpacked Electron app               |
-| `bun run make`      | Produce platform installers                    |
-| `bun run publish`   | Publish releases via electron-forge            |
+| Script                 | What it does                                   |
+| ---------------------- | ---------------------------------------------- |
+| `pnpm start`           | Launch the Electron dev build via electron-forge |
+| `pnpm test`            | Run vitest in watch mode                       |
+| `pnpm test:run`        | Run the full test suite once                   |
+| `pnpm lint`            | Run ESLint across `src/`                       |
+| `pnpm typecheck`       | Run `tsc --noEmit`                             |
+| `pnpm db:generate`     | Generate a drizzle migration from `schema.ts`  |
+| `pnpm package`         | Produce an unpacked Electron app               |
+| `pnpm make`            | Produce platform installers                    |
+| `pnpm publish`         | Publish releases via electron-forge            |
 
 ## Data locations
 
