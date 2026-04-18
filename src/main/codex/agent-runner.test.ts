@@ -271,7 +271,7 @@ const createHarness = (): Harness => {
   const runner = createAgentRunner({
     database,
     broker,
-    createCodex: () => fake.codex,
+    createCodex: async () => fake.codex,
     providerSettings: () => providerSettings.current,
     worktree: {
       create: async (args) => {

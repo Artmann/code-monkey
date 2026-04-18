@@ -57,7 +57,7 @@ export type ResolveProjectHeadResult = { branchName: string | null }
 export type AgentRunnerDependencies = {
   database: AgentRunnerDatabase
   broker: EventBroker<PersistedEvent>
-  createCodex: (settings: ProviderSettings) => AgentRunnerCodex
+  createCodex: (settings: ProviderSettings) => Promise<AgentRunnerCodex>
   providerSettings: () => ProviderSettings | null
   worktree: {
     create: (args: AgentRunnerWorktreeInput) => Promise<CreatedWorktree>
@@ -348,7 +348,7 @@ export const createAgentRunner = (
     })
 
     const prompt = buildInitialPrompt(task)
-    const codex = createCodex(settings)
+    const codex = await createCodex(settings)
     const thread = codex.startThread({
       workingDirectory: created.path,
       skipGitRepoCheck: false,
@@ -418,7 +418,7 @@ export const createAgentRunner = (
 
     setTaskAgentState(taskId, 'working')
 
-    const codex = createCodex(settings)
+    const codex = await createCodex(settings)
     const thread = threadRow.codexThreadId
       ? codex.resumeThread(threadRow.codexThreadId, {
           workingDirectory: threadRow.worktreePath,
@@ -607,7 +607,7 @@ export const createAgentRunner = (
       return threadRow.id
     })
 
-    const codex = createCodex(settings)
+    const codex = await createCodex(settings)
     const thread = codex.startThread({
       workingDirectory: project.directoryPath,
       skipGitRepoCheck: false,

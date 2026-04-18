@@ -1,6 +1,13 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
-import { buildCodexOptions } from './codex-client'
+import type { ProviderSettings } from './provider-settings'
+
+import {
+  buildCodexOptions,
+  createCodex,
+  type BuiltCodexOptions,
+  type CodexSdkModule
+} from './codex-client'
 
 describe('buildCodexOptions', () => {
   test('CLI mode without a binary path maps to empty options', () => {
@@ -17,5 +24,29 @@ describe('buildCodexOptions', () => {
     expect(buildCodexOptions({ mode: 'api', apiKey: 'sk-secret' })).toEqual({
       apiKey: 'sk-secret'
     })
+  })
+
+  test('loads the SDK lazily when creating a Codex client', async () => {
+    const settings: ProviderSettings = { mode: 'api', apiKey: 'sk-secret' }
+    let constructedOptions: unknown
+    const loader = vi.fn(async (): Promise<CodexSdkModule> => ({
+      Codex: class {
+        readonly kind = 'codex-instance'
+        readonly resumeThread = vi.fn()
+        readonly startThread = vi.fn()
+
+        constructor(readonly options: BuiltCodexOptions) {
+          constructedOptions = options
+        }
+      }
+    }))
+
+    await expect(createCodex(settings, loader)).resolves.toMatchObject({
+      kind: 'codex-instance',
+      options: { apiKey: 'sk-secret' }
+    })
+
+    expect(loader).toHaveBeenCalledTimes(1)
+    expect(constructedOptions).toEqual({ apiKey: 'sk-secret' })
   })
 })

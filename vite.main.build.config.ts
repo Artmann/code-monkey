@@ -9,6 +9,9 @@ import { defineConfig } from 'vite'
 // aren't browser-stubbed). Output is CJS so Electron's `require()` can
 // load it.
 export default defineConfig({
+  ssr: {
+    noExternal: ['@openai/codex', '@openai/codex-sdk']
+  },
   build: {
     outDir: 'dist/main',
     emptyOutDir: false,

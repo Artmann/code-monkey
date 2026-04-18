@@ -56,7 +56,7 @@ export const createCodexRuntime = (
 
     if (settings == null) return null
 
-    const codex = createCodex(settings)
+    const codex = await createCodex(settings)
 
     return generateMergeCommitMessage(
       {
