@@ -41,7 +41,10 @@ interface TaskViewProps {
 export function TaskView({ task, onClose }: TaskViewProps) {
   const [, setSearchParams] = useSearchParams()
   const updateTask = useUpdateTaskMutation()
-  const agent = useAgentTaskState(task)
+  const [activeTab, setActiveTab] = useState<'overview' | 'agent'>('overview')
+  const agent = useAgentTaskState(task, {
+    onStarted: () => setActiveTab('agent')
+  })
 
   function saveTitle(title: string) {
     const trimmed = title.trim()
@@ -150,7 +153,8 @@ export function TaskView({ task, onClose }: TaskViewProps) {
       </div>
 
       <Tabs
-        defaultValue='overview'
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as 'overview' | 'agent')}
         className='flex flex-1 flex-col gap-0 overflow-hidden'
       >
         <div className='border-b px-6 py-2'>
@@ -198,7 +202,10 @@ export function TaskView({ task, onClose }: TaskViewProps) {
   )
 }
 
-function useAgentTaskState(task: Task) {
+function useAgentTaskState(
+  task: Task,
+  options: { onStarted?: () => void } = {}
+) {
   const providerQuery = useProviderSettingsQuery()
   const threadsQuery = useTaskThreadsQuery(task.id)
 
@@ -227,7 +234,9 @@ function useAgentTaskState(task: Task) {
     isMerging: mergeTask.isPending,
     mergeError,
     onStartWork: () => {
-      startThread.mutate(task.id)
+      startThread.mutate(task.id, {
+        onSuccess: () => options.onStarted?.()
+      })
     },
     onSendMessage: (text: string) => {
       if (!threadId) return

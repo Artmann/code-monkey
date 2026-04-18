@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../lib/api-client'
+import { taskThreadsKey } from './use-thread'
 
 export const taskStatusValues = ['in_progress', 'todo', 'done'] as const
 export type TaskStatus = (typeof taskStatusValues)[number]
@@ -107,8 +108,14 @@ export function useUpdateTaskMutation() {
 
       return data.task
     },
-    onSuccess: (task) => {
+    onSuccess: (task, variables) => {
       void queryClient.invalidateQueries({ queryKey: tasksKey(task.projectId) })
+
+      if (variables.status === 'in_progress') {
+        void queryClient.invalidateQueries({
+          queryKey: taskThreadsKey(task.id)
+        })
+      }
     }
   })
 }
