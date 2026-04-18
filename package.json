@@ -1,10 +1,9 @@
 {
-  "name": "code-monkey",
+  "name": "@artmann/codemonkey",
   "productName": "code-monkey",
   "version": "0.1.0",
   "description": "A local-first desktop workbench for coding agents. Each task runs in its own isolated git worktree with a streaming agent view.",
   "main": ".vite/build/main.js",
-  "private": true,
   "scripts": {
     "build": "pnpm typecheck && pnpm lint && pnpm test:run && pnpm make",
     "db:generate": "drizzle-kit generate",
