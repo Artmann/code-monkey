@@ -76,7 +76,16 @@ export const createCodexRuntime = (
       create: async (args) => createWorktree(worktreeDeps, args),
       remove: async (args) => removeWorktree(worktreeDeps, args)
     },
-    merge: async (args) => mergeTaskBranch({ git, generateMessage }, args)
+    merge: async (args) => mergeTaskBranch({ git, generateMessage }, args),
+    resolveProjectHead: async ({ directoryPath }) => {
+      const result = await git(['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: directoryPath
+      })
+
+      return {
+        branchName: result.exitCode === 0 ? result.stdout.trim() : null
+      }
+    }
   })
 
   return { broker, runner }

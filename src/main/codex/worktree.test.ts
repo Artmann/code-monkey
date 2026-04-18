@@ -271,7 +271,9 @@ describe('createWorktree', () => {
         existing.add(path)
       },
       pathExists: async (path) => existing.has(path),
-      linkNodeModules: async () => {}
+      linkNodeModules: async () => {
+        // no-op — tests don't assert on symlink behaviour.
+      }
     }
 
     const windowsProject = {

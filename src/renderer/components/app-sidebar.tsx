@@ -83,7 +83,7 @@ function AttentionDot({ state }: { state: AttentionState }) {
   if (state === 'running') {
     return (
       <span
-        className='size-2 shrink-0 rounded-full bg-sky-500 animate-banana-pulse'
+        className='size-2 shrink-0 rounded-full bg-[color:var(--ctp-peach)] animate-banana-pulse'
         aria-hidden='true'
       />
     )
@@ -141,7 +141,7 @@ function AttentionSection({
   const labelClass = cn(
     'px-2 pb-1 pt-3 font-display text-[10px] font-semibold uppercase tracking-widest',
     tone === 'needs_attention' && 'text-banana',
-    tone === 'running' && 'text-sky-500',
+    tone === 'running' && 'text-[color:var(--ctp-peach)]',
     tone === 'idle' && 'text-muted-foreground/60'
   )
 

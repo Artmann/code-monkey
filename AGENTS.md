@@ -2,14 +2,17 @@
 - Use invariant from tiny-invariant to fail on invalid states.
 - Use dayjs for dates and time.
 - Use underscores as thousand separators in numeric literals (e.g. 3_000).
+- Always fix all errors and warnings, even preexisting ones. Don't introduce new
+  ones. We always want to leave the codebase in a better state than we found it.
 
 ## Code Style
 
 - Don't use CONSTANT_CASE. This is not JAVA.
+- Always use bracers for control flows, even if they are one-liners.
 - Use entire words as variable names. This is not Go. For example `request`
   instead of `req`.
 - Use punctuation.
-- Use whitespace to break up code to make it easier to read. Put a blank like
+- Use whitespace to break up code to make it easier to read. Put a blank line
   after const groups and control flows and before return statements.
 - Order things in alphabetical order by default. If applicable order by
   accessiblity level first, then alphabetical order.

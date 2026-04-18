@@ -1,6 +1,6 @@
 import { Pencil, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useProviderSettingsQuery } from '../hooks/use-provider-settings'
@@ -17,11 +17,11 @@ import {
   useThreadQuery,
   useThreadStream
 } from '../hooks/use-thread'
-import { getAgentStateMeta } from '../lib/agent-state'
 import { getStatusMeta, statusOrder } from '../lib/task-status'
 import { cn } from '../lib/utils'
 import { AgentHeaderControls } from './agent-header-controls'
 import { AgentPane } from './agent-pane'
+import { StatePill } from './state-pill'
 import { Button } from './ui/button'
 import {
   Select,
@@ -35,16 +35,13 @@ import { Textarea } from './ui/textarea'
 
 interface TaskViewProps {
   task: Task
+  onClose?: () => void
 }
 
-export function TaskView({ task }: TaskViewProps) {
-  const navigate = useNavigate()
-  const { projectId } = useParams<{ projectId: string }>()
+export function TaskView({ task, onClose }: TaskViewProps) {
+  const [, setSearchParams] = useSearchParams()
   const updateTask = useUpdateTaskMutation()
   const agent = useAgentTaskState(task)
-
-  const agentMeta = getAgentStateMeta(task.agentState)
-  const AgentIcon = agentMeta.icon
 
   function saveTitle(title: string) {
     const trimmed = title.trim()
@@ -67,32 +64,32 @@ export function TaskView({ task }: TaskViewProps) {
   }
 
   function closeTaskView() {
-    if (projectId) {
-      navigate(`/projects/${projectId}`)
+    if (onClose) {
+      onClose()
+      return
     }
+
+    setSearchParams((prev) => {
+      const copy = new URLSearchParams(prev)
+      copy.delete('task')
+      return copy
+    })
   }
 
   return (
     <div className='flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-l bg-background'>
       <div className='flex items-center justify-between gap-4 border-b px-6 py-4'>
-        <div className='flex flex-wrap items-center gap-3'>
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-semibold uppercase tracking-wider',
-              agentMeta.badgeClassName
-            )}
-            title={`Agent: ${agentMeta.label}`}
-          >
-            <AgentIcon
-              aria-hidden='true'
-              className={cn(
-                'size-3.5',
-                agentMeta.iconClassName,
-                agentMeta.animate && 'animate-spin'
-              )}
-            />
-            {agentMeta.label}
-          </span>
+        <div className='flex min-w-0 items-center gap-3'>
+          <h2 className='truncate font-display text-[15px] font-semibold leading-tight tracking-tight'>
+            {task.title}
+          </h2>
+        </div>
+
+        <div className='flex shrink-0 items-center gap-2'>
+          <StatePill
+            thread={agent.thread}
+            agentState={task.agentState}
+          />
 
           <Select
             value={task.status}
@@ -130,9 +127,7 @@ export function TaskView({ task }: TaskViewProps) {
               })}
             </SelectContent>
           </Select>
-        </div>
 
-        <div className='flex items-center gap-2'>
           <AgentHeaderControls
             task={task}
             thread={agent.thread}

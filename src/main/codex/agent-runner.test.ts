@@ -238,6 +238,8 @@ type Harness = {
   }>
   mergeCalls: MergeTaskInput[]
   mergeResult: { current: MergeTaskResult | Error }
+  projectHead: { current: { branchName: string | null } }
+  projectHeadCalls: string[]
 }
 
 const createHarness = (): Harness => {
@@ -252,6 +254,10 @@ const createHarness = (): Harness => {
   const mergeResult: { current: MergeTaskResult | Error } = {
     current: { mergeCommitSha: 'deadbeef', autoCommitted: false }
   }
+  const projectHead: { current: { branchName: string | null } } = {
+    current: { branchName: 'main' }
+  }
+  const projectHeadCalls: string[] = []
 
   const defaultCreate = async (args: {
     project: { id: string; directoryPath: string }
@@ -283,6 +289,11 @@ const createHarness = (): Harness => {
       }
 
       return mergeResult.current
+    },
+    resolveProjectHead: async ({ directoryPath }) => {
+      projectHeadCalls.push(directoryPath)
+
+      return projectHead.current
     }
   })
 
@@ -294,7 +305,9 @@ const createHarness = (): Harness => {
     providerSettings,
     mergeCalls,
     mergeResult,
-    worktreeCreations: creations
+    worktreeCreations: creations,
+    projectHead,
+    projectHeadCalls
   }
 }
 
@@ -733,6 +746,168 @@ describe('createAgentRunner', () => {
       const updatedTask = getTaskRow(harness.database, task.id)
 
       expect(updatedTask?.status).toEqual('in_progress')
+    })
+  })
+
+  describe('startProjectThread', () => {
+    test('throws when no provider is configured', async () => {
+      const harness = createHarness()
+
+      harness.providerSettings.current = null
+
+      const { project } = seedProjectAndTask(harness.database)
+
+      await expect(
+        harness.runner.startProjectThread(project.id, 'hi')
+      ).rejects.toThrow(/not configured/i)
+    })
+
+    test('throws when the project does not exist', async () => {
+      const harness = createHarness()
+
+      await expect(
+        harness.runner.startProjectThread(
+          '00000000-0000-0000-0000-000000000000',
+          'hi'
+        )
+      ).rejects.toThrow(/project.*not found/i)
+    })
+
+    test('inserts a project-scoped thread, writes prep event, runs in project dir', async () => {
+      const harness = createHarness()
+      const { project, task } = seedProjectAndTask(harness.database)
+
+      const result = await harness.runner.startProjectThread(
+        project.id,
+        'list files'
+      )
+
+      const thread = getThreadRow(harness.database, result.threadId)
+
+      expect(thread?.taskId).toBeNull()
+      expect(thread?.projectId).toEqual(project.id)
+      expect(thread?.status).toEqual('running')
+      expect(thread?.worktreePath).toEqual(project.directoryPath)
+      expect(thread?.branchName).toEqual('main')
+      expect(thread?.baseBranch).toBeNull()
+
+      const events = getThreadEvents(harness.database, result.threadId)
+
+      expect(events).toHaveLength(1)
+      expect(events.at(0)?.type).toEqual('prep')
+
+      expect(harness.projectHeadCalls).toEqual([project.directoryPath])
+      expect(harness.worktreeCreations).toHaveLength(0)
+
+      // Task state must not change.
+      const unchangedTask = getTaskRow(harness.database, task.id)
+      expect(unchangedTask?.agentState).toEqual('idle')
+      expect(unchangedTask?.status).toEqual('todo')
+
+      await waitFor(() => harness.threads.length === 1)
+
+      const [fakeThread] = harness.threads
+      invariant(fakeThread, 'fake thread missing')
+      expect(fakeThread.options.workingDirectory).toEqual(project.directoryPath)
+      expect(fakeThread.inputs.at(0)).toEqual('list files')
+    })
+
+    test('turn.completed flips project thread to idle without touching tasks', async () => {
+      const harness = createHarness()
+      const { project, task } = seedProjectAndTask(harness.database)
+
+      harness.database
+        .update(schema.tasks)
+        .set({ agentState: 'working' })
+        .where(eq(schema.tasks.id, task.id))
+        .run()
+
+      const { threadId } = await harness.runner.startProjectThread(
+        project.id,
+        'start'
+      )
+
+      await waitFor(() => harness.threads.length === 1)
+
+      const [fakeThread] = harness.threads
+      invariant(fakeThread, 'fake thread missing')
+      fakeThread.emit({ type: 'turn.completed' })
+
+      await waitFor(
+        () => getThreadRow(harness.database, threadId)?.status === 'idle'
+      )
+
+      // Unrelated task must NOT be flipped by project-scoped stream events.
+      const unchangedTask = getTaskRow(harness.database, task.id)
+      expect(unchangedTask?.agentState).toEqual('working')
+    })
+
+    test('continueThread works on a project-scoped thread', async () => {
+      const harness = createHarness()
+      const { project } = seedProjectAndTask(harness.database)
+
+      const { threadId } = await harness.runner.startProjectThread(
+        project.id,
+        'start'
+      )
+
+      await waitFor(() => harness.threads.length === 1)
+
+      const [firstThread] = harness.threads
+      invariant(firstThread, 'first thread missing')
+      firstThread.emit({ type: 'thread.started', thread_id: 'codex-p1' })
+      firstThread.emit({ type: 'turn.completed' })
+
+      await waitFor(
+        () => getThreadRow(harness.database, threadId)?.status === 'idle'
+      )
+
+      await harness.runner.continueThread(threadId, 'also show src/')
+      await waitFor(() => harness.threads.length === 2)
+
+      const secondThread = harness.threads.at(1)
+      invariant(secondThread, 'second thread missing')
+      expect(secondThread.inputs.at(0)).toEqual('also show src/')
+      expect(secondThread.options.workingDirectory).toEqual(
+        project.directoryPath
+      )
+    })
+  })
+
+  describe('recoverOrphanedThreads on project threads', () => {
+    test('does not touch tasks when orphaned thread is project-scoped', async () => {
+      const harness = createHarness()
+      const { project, task } = seedProjectAndTask(harness.database)
+
+      harness.database
+        .update(schema.tasks)
+        .set({ agentState: 'working' })
+        .where(eq(schema.tasks.id, task.id))
+        .run()
+
+      const [orphan] = harness.database
+        .insert(schema.threads)
+        .values({
+          taskId: null,
+          projectId: project.id,
+          worktreePath: project.directoryPath,
+          branchName: 'main',
+          baseBranch: null,
+          status: 'running'
+        })
+        .returning()
+        .all()
+
+      invariant(orphan, 'orphan thread missing')
+
+      harness.runner.recoverOrphanedThreads()
+
+      expect(getThreadRow(harness.database, orphan.id)?.status).toEqual(
+        'error'
+      )
+
+      const unchangedTask = getTaskRow(harness.database, task.id)
+      expect(unchangedTask?.agentState).toEqual('working')
     })
   })
 })

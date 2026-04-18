@@ -9,6 +9,7 @@ import { AgentPane } from './agent-pane'
 const buildThread = (overrides: Partial<Thread> = {}): Thread => ({
   id: 'thread-1',
   taskId: 'task-1',
+  projectId: null,
   codexThreadId: null,
   worktreePath: '/tmp/wt',
   branchName: 'code-monkey/t',

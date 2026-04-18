@@ -104,24 +104,26 @@ export function restoreApiBridge() {
 }
 
 export function mockFetchJson(responses: Record<string, unknown>) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = typeof input === 'string' ? input : input.toString()
-    const path = new URL(url).pathname + new URL(url).search
-    const responseKey = Object.keys(responses).find((key) =>
-      path.startsWith(key)
-    )
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      const path = new URL(url).pathname + new URL(url).search
+      const responseKey = Object.keys(responses).find((key) =>
+        path.startsWith(key)
+      )
 
-    if (!responseKey) {
-      return new Response(JSON.stringify({ error: 'Not mocked' }), {
-        status: 404
+      if (!responseKey) {
+        return new Response(JSON.stringify({ error: 'Not mocked' }), {
+          status: 404
+        })
+      }
+
+      return new Response(JSON.stringify(responses[responseKey]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
       })
     }
-
-    return new Response(JSON.stringify(responses[responseKey]), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  })
+  )
 
   vi.stubGlobal('fetch', fetchMock)
 

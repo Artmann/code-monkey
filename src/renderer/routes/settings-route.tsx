@@ -1,3 +1,4 @@
+import { Monitor, Moon, Sun } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '../components/ui/button'
@@ -9,6 +10,35 @@ import {
   useSaveProviderMutation,
   type ProviderSettingsSummary
 } from '../hooks/use-provider-settings'
+import { useTheme } from '../hooks/use-theme'
+import type { ThemePreference } from '../lib/theme'
+import { cn } from '../lib/utils'
+
+const themeOptions: Array<{
+  value: ThemePreference
+  label: string
+  icon: typeof Sun
+  description: string
+}> = [
+  {
+    value: 'light',
+    label: 'Light',
+    icon: Sun,
+    description: 'Catppuccin Latte'
+  },
+  {
+    value: 'dark',
+    label: 'Dark',
+    icon: Moon,
+    description: 'Catppuccin Macchiato'
+  },
+  {
+    value: 'system',
+    label: 'System',
+    icon: Monitor,
+    description: 'Match your OS'
+  }
+]
 
 type Mode = 'cli' | 'api'
 
@@ -28,6 +58,7 @@ export function SettingsRoute() {
   const query = useProviderSettingsQuery()
   const save = useSaveProviderMutation()
   const clear = useClearProviderMutation()
+  const theme = useTheme()
 
   const summary = query.data ?? null
 
@@ -79,16 +110,66 @@ export function SettingsRoute() {
         Configure how code-monkey connects to an agent provider.
       </p>
 
+      <section className='mb-6 rounded-md border p-4'>
+        <header className='mb-3'>
+          <h2 className='text-sm font-medium'>Appearance</h2>
+          <p className='text-xs text-muted-foreground'>
+            Choose a color theme. System follows your OS setting.
+          </p>
+        </header>
+
+        <div
+          role='radiogroup'
+          aria-label='Theme'
+          className='grid grid-cols-3 gap-2'
+        >
+          {themeOptions.map((option) => {
+            const Icon = option.icon
+            const selected = theme.preference === option.value
+
+            return (
+              <button
+                key={option.value}
+                type='button'
+                role='radio'
+                aria-checked={selected}
+                onClick={() => theme.setPreference(option.value)}
+                className={cn(
+                  'flex flex-col items-start gap-1.5 rounded-lg border bg-card px-3 py-2.5 text-left transition-colors',
+                  'hover:border-muted-foreground/50 hover:bg-accent/40',
+                  selected &&
+                    'border-banana bg-banana/10 hover:border-banana hover:bg-banana/10'
+                )}
+              >
+                <span className='flex items-center gap-2 text-sm font-medium'>
+                  <Icon
+                    aria-hidden='true'
+                    className={cn(
+                      'size-4',
+                      selected ? 'text-banana' : 'text-muted-foreground'
+                    )}
+                  />
+                  {option.label}
+                </span>
+                <span className='text-[11px] text-muted-foreground'>
+                  {option.description}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
       <section className='rounded-md border p-4'>
         <header className='mb-4 flex items-baseline justify-between'>
           <h2 className='text-sm font-medium'>Provider: Codex</h2>
           {!summary && (
-            <span className='text-xs text-amber-600'>
+            <span className='text-xs text-[color:var(--ctp-yellow)]'>
               No provider configured
             </span>
           )}
           {summary && (
-            <span className='text-xs text-emerald-600'>Configured</span>
+            <span className='text-xs text-[color:var(--ctp-green)]'>Configured</span>
           )}
         </header>
 
@@ -168,7 +249,7 @@ export function SettingsRoute() {
                     autoComplete='off'
                   />
                   {hasApiKey && (
-                    <p className='text-xs text-emerald-600'>
+                    <p className='text-xs text-[color:var(--ctp-green)]'>
                       An API key is stored. Enter a new value to replace
                       it.
                     </p>

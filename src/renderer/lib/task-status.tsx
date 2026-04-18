@@ -20,7 +20,7 @@ const statusTable: Record<TaskStatus, StatusMeta> = {
     value: 'in_progress',
     label: 'In progress',
     icon: CircleDashed,
-    iconClassName: 'text-yellow-500'
+    iconClassName: 'text-[color:var(--ctp-peach)]'
   },
   todo: {
     value: 'todo',
@@ -32,7 +32,7 @@ const statusTable: Record<TaskStatus, StatusMeta> = {
     value: 'done',
     label: 'Done',
     icon: CircleCheck,
-    iconClassName: 'text-emerald-500'
+    iconClassName: 'text-[color:var(--ctp-green)]'
   }
 }
 

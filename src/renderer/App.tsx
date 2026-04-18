@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AppSidebar } from './components/app-sidebar'
 import { NewProjectDialog } from './components/new-project-dialog'
 import {
@@ -11,6 +11,20 @@ import { useProjectsQuery } from './hooks/use-projects'
 import { HomeRoute } from './routes/home-route'
 import { ProjectRoute } from './routes/project-route'
 import { SettingsRoute } from './routes/settings-route'
+
+function LegacyTaskRedirect() {
+  const { projectId, taskId } = useParams<{
+    projectId: string
+    taskId: string
+  }>()
+
+  return (
+    <Navigate
+      to={`/projects/${projectId}?task=${taskId}`}
+      replace
+    />
+  )
+}
 
 export function App() {
   const projectsQuery = useProjectsQuery()
@@ -44,8 +58,16 @@ export function App() {
               element={<ProjectRoute />}
             />
             <Route
-              path='/projects/:projectId/tasks/:taskId'
+              path='/projects/:projectId/agent'
               element={<ProjectRoute />}
+            />
+            <Route
+              path='/projects/:projectId/agent/threads/:threadId'
+              element={<ProjectRoute />}
+            />
+            <Route
+              path='/projects/:projectId/tasks/:taskId'
+              element={<LegacyTaskRedirect />}
             />
             <Route
               path='/settings'

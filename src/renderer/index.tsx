@@ -5,7 +5,11 @@ import { HashRouter } from 'react-router-dom'
 import invariant from 'tiny-invariant'
 import { App } from './App'
 import { queryClient } from './lib/query-client'
+import { applyTheme, getStoredTheme } from './lib/theme'
 import './styles/globals.css'
+
+// Apply the saved theme before the first paint to avoid a flash.
+applyTheme(getStoredTheme())
 
 const rootElement = document.getElementById('root')
 invariant(rootElement, '#root element not found in index.html')

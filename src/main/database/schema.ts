@@ -78,13 +78,14 @@ export const threads = sqliteTable('threads', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => randomUUID()),
-  taskId: text('task_id')
-    .notNull()
-    .references(() => tasks.id, { onDelete: 'cascade' }),
+  taskId: text('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => projects.id, {
+    onDelete: 'cascade'
+  }),
   codexThreadId: text('codex_thread_id'),
-  worktreePath: text('worktree_path').notNull(),
-  branchName: text('branch_name').notNull(),
-  baseBranch: text('base_branch').notNull(),
+  worktreePath: text('worktree_path'),
+  branchName: text('branch_name'),
+  baseBranch: text('base_branch'),
   status: text('status', { enum: threadStatusValues })
     .notNull()
     .$defaultFn(() => 'starting'),

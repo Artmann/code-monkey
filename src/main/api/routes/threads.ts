@@ -47,6 +47,47 @@ export const createThreadsRoutes = (
     return context.json({ threads })
   })
 
+  routes.get('/projects/:projectId/threads', (context) => {
+    const projectId = context.req.param('projectId')
+
+    const threads = database
+      .select()
+      .from(schema.threads)
+      .where(eq(schema.threads.projectId, projectId))
+      .orderBy(desc(schema.threads.createdAt))
+      .all()
+
+    return context.json({ threads })
+  })
+
+  routes.post(
+    '/projects/:projectId/threads',
+    zValidator('json', messageSchema),
+    async (context) => {
+      const projectId = context.req.param('projectId')
+      const body = context.req.valid('json')
+
+      try {
+        const { threadId } = await runner.startProjectThread(
+          projectId,
+          body.text
+        )
+
+        const thread = database
+          .select()
+          .from(schema.threads)
+          .where(eq(schema.threads.id, threadId))
+          .get()
+
+        return context.json({ thread }, 201)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+
+        return context.json({ error: message }, 500)
+      }
+    }
+  )
+
   routes.post('/tasks/:taskId/threads', async (context) => {
     const taskId = context.req.param('taskId')
 

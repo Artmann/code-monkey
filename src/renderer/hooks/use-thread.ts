@@ -16,11 +16,12 @@ export type ThreadStatus =
 
 export type Thread = {
   id: string
-  taskId: string
+  taskId: string | null
+  projectId: string | null
   codexThreadId: string | null
-  worktreePath: string
-  branchName: string
-  baseBranch: string
+  worktreePath: string | null
+  branchName: string | null
+  baseBranch: string | null
   status: ThreadStatus
   errorMessage: string | null
   createdAt: string
@@ -47,6 +48,9 @@ export const threadKey = (threadId: string) =>
 export const taskThreadsKey = (taskId: string) =>
   ['tasks', taskId, 'threads'] as const
 
+export const projectThreadsKey = (projectId: string) =>
+  ['projects', projectId, 'threads'] as const
+
 const SUBSCRIBED_EVENT_TYPES = [
   'prep',
   'thread.started',
@@ -68,6 +72,22 @@ export function useTaskThreadsQuery(taskId: string | null | undefined) {
 
       const data = await apiFetch<{ threads: Thread[] }>(
         `/tasks/${taskId}/threads`
+      )
+
+      return data.threads
+    }
+  })
+}
+
+export function useProjectThreadsQuery(projectId: string | null | undefined) {
+  return useQuery({
+    queryKey: projectThreadsKey(projectId ?? ''),
+    enabled: Boolean(projectId),
+    queryFn: async () => {
+      if (!projectId) return []
+
+      const data = await apiFetch<{ threads: Thread[] }>(
+        `/projects/${projectId}/threads`
       )
 
       return data.threads
@@ -166,12 +186,51 @@ export function useStartThreadMutation() {
         thread,
         events: []
       })
-      void queryClient.invalidateQueries({
-        queryKey: taskThreadsKey(thread.taskId)
+
+      if (thread.taskId) {
+        void queryClient.invalidateQueries({
+          queryKey: taskThreadsKey(thread.taskId)
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ['tasks', thread.taskId]
+        })
+      }
+    }
+  })
+}
+
+export function useStartProjectThreadMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      text
+    }: {
+      projectId: string
+      text: string
+    }) => {
+      const data = await apiFetch<StartThreadResponse>(
+        `/projects/${projectId}/threads`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ text })
+        }
+      )
+
+      return data.thread
+    },
+    onSuccess: (thread) => {
+      queryClient.setQueryData<ThreadResponse | null>(threadKey(thread.id), {
+        thread,
+        events: []
       })
-      void queryClient.invalidateQueries({
-        queryKey: ['tasks', thread.taskId]
-      })
+
+      if (thread.projectId) {
+        void queryClient.invalidateQueries({
+          queryKey: projectThreadsKey(thread.projectId)
+        })
+      }
     }
   })
 }

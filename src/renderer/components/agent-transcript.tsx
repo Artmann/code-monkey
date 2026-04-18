@@ -1,4 +1,19 @@
-import type { ThreadEvent } from '../hooks/use-thread'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  FileEdit,
+  FilePlus,
+  FileText,
+  Loader2,
+  Terminal
+} from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+
+import type { Thread, ThreadEvent } from '../hooks/use-thread'
+import { cn } from '../lib/utils'
+import { AgentMessageCard } from './agent-message-card'
 
 type AgentMessageItem = {
   id?: string
@@ -42,9 +57,15 @@ type KnownItem =
   | TodoListItem
   | { id?: string; type: string }
 
-const getItemFromPayload = (payload: unknown): KnownItem | null => {
-  if (typeof payload !== 'object' || payload === null) return null
+type PrepPayload = {
+  workingDirectory?: string
+  worktreePath?: string
+  branchName?: string
+  scope?: string
+}
 
+function getItem(payload: unknown): KnownItem | null {
+  if (typeof payload !== 'object' || payload === null) return null
   const record = payload as Record<string, unknown>
   const item = record.item
 
@@ -53,224 +74,590 @@ const getItemFromPayload = (payload: unknown): KnownItem | null => {
   return item as KnownItem
 }
 
-const PrepRow = ({ payload }: { payload: unknown }) => {
-  const record =
-    typeof payload === 'object' && payload !== null
-      ? (payload as Record<string, unknown>)
-      : {}
-  const worktreePath = typeof record.worktreePath === 'string'
-    ? record.worktreePath
-    : null
+function formatTimestamp(iso: string): string {
+  const date = new Date(iso)
 
-  return (
-    <div className='rounded-md border border-muted-foreground/10 bg-muted/40 p-3 text-xs text-muted-foreground'>
-      <div className='font-medium text-foreground'>Preparing</div>
-      {worktreePath && (
-        <div>
-          Worktree ready at{' '}
-          <code className='font-mono'>{worktreePath}</code>
-        </div>
-      )}
-    </div>
-  )
+  if (Number.isNaN(date.getTime())) return ''
+
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
 }
 
-const ItemRow = ({ item }: { item: KnownItem }) => {
-  if (item.type === 'agent_message') {
-    const message = item as AgentMessageItem
+type ToolStep = {
+  key: string
+  tool: 'shell' | 'file' | 'reasoning' | 'unknown'
+  label: string
+  detail?: string
+  ok: boolean
+}
 
-    return (
-      <div className='rounded-md border bg-background p-3 text-sm'>
-        <div className='mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground'>
-          Agent
-        </div>
-        <div className='whitespace-pre-wrap'>{message.text}</div>
-      </div>
-    )
+type RenderNode =
+  | { kind: 'prep'; id: string; payload: PrepPayload }
+  | {
+      kind: 'agent'
+      id: string
+      text: string
+      timestamp: string | null
+      streaming: boolean
+    }
+  | {
+      kind: 'activity'
+      id: string
+      steps: ToolStep[]
+      running: boolean
+    }
+  | { kind: 'todo'; id: string; items: Array<{ text: string; completed: boolean }> }
+  | { kind: 'error'; id: string; message: string }
+  | { kind: 'merge'; id: string; baseBranch?: string; branchName?: string }
+  | { kind: 'turn-complete'; id: string }
+
+function stepForItem(
+  item: KnownItem,
+  ok: boolean,
+  key: string
+): ToolStep | null {
+  if (item.type === 'command_execution') {
+    const cmd = item as CommandExecutionItem
+    const exitOk =
+      ok && (typeof cmd.exit_code !== 'number' || cmd.exit_code === 0)
+    return {
+      key,
+      tool: 'shell',
+      label: cmd.command?.trim() || 'command',
+      detail:
+        typeof cmd.exit_code === 'number' ? `exit ${cmd.exit_code}` : undefined,
+      ok: exitOk
+    }
+  }
+
+  if (item.type === 'file_change') {
+    const change = item as FileChangeItem
+    const first = change.changes?.[0]
+    const count = change.changes?.length ?? 0
+    const label =
+      count > 1
+        ? `${count} files · ${first?.path ?? ''}`
+        : first?.path ?? 'file change'
+    return { key, tool: 'file', label, detail: first?.kind, ok }
   }
 
   if (item.type === 'reasoning') {
     const reasoning = item as ReasoningItem
-
-    return (
-      <div className='rounded-md border border-dashed p-3 text-xs text-muted-foreground'>
-        <div className='mb-1 font-semibold uppercase tracking-widest'>
-          Reasoning
-        </div>
-        <div className='whitespace-pre-wrap'>{reasoning.text}</div>
-      </div>
-    )
+    const summary = (reasoning.text ?? '').split('\n')[0]?.slice(0, 120)
+    return {
+      key,
+      tool: 'reasoning',
+      label: summary || 'reasoning',
+      ok: true
+    }
   }
 
-  if (item.type === 'command_execution') {
-    const command = item as CommandExecutionItem
-
-    return (
-      <details className='rounded-md border bg-muted/20 text-xs'>
-        <summary className='cursor-pointer px-3 py-2 font-mono'>
-          <span className='text-muted-foreground'>$</span>{' '}
-          {command.command ?? ''}
-          {typeof command.exit_code === 'number' && (
-            <span
-              className={
-                command.exit_code === 0
-                  ? 'ml-2 text-emerald-600'
-                  : 'ml-2 text-destructive'
-              }
-            >
-              exit {command.exit_code}
-            </span>
-          )}
-        </summary>
-        {command.aggregated_output && (
-          <pre className='overflow-x-auto border-t bg-background/60 p-3 font-mono text-[11px]'>
-            {command.aggregated_output}
-          </pre>
-        )}
-      </details>
-    )
-  }
-
-  if (item.type === 'file_change') {
-    const patch = item as FileChangeItem
-
-    return (
-      <div className='rounded-md border p-3 text-xs'>
-        <div className='mb-1 font-semibold'>
-          File changes {patch.status ? `(${patch.status})` : ''}
-        </div>
-        <ul className='space-y-0.5 font-mono'>
-          {(patch.changes ?? []).map((change) => (
-            <li key={change.path}>
-              <span className='text-muted-foreground'>{change.kind}</span>{' '}
-              {change.path}
-            </li>
-          ))}
-        </ul>
-      </div>
-    )
-  }
-
-  if (item.type === 'todo_list') {
-    const todoList = item as TodoListItem
-
-    return (
-      <ul className='rounded-md border p-3 text-xs'>
-        {(todoList.items ?? []).map((todo, index) => (
-          <li
-            key={`${todo.text}-${index}`}
-            className='flex gap-2'
-          >
-            <span>{todo.completed ? '☑' : '☐'}</span>
-            <span
-              className={todo.completed ? 'line-through opacity-60' : ''}
-            >
-              {todo.text}
-            </span>
-          </li>
-        ))}
-      </ul>
-    )
-  }
-
-  return (
-    <div className='rounded-md border border-dashed p-2 text-[11px] text-muted-foreground'>
-      {item.type}
-    </div>
-  )
+  return null
 }
 
-const UsageRow = ({ payload }: { payload: unknown }) => {
-  const record =
-    typeof payload === 'object' && payload !== null
-      ? (payload as { usage?: { input_tokens?: number; output_tokens?: number } })
-      : {}
-  const usage = record.usage
+function buildNodes(events: ThreadEvent[]): RenderNode[] {
+  const completedItemIds = new Set<string>()
+  for (const event of events) {
+    if (event.type === 'item.completed') {
+      const item = getItem(event.payload)
+      if (item?.id) completedItemIds.add(item.id)
+    }
+  }
 
-  return (
-    <div className='text-[10px] uppercase tracking-widest text-muted-foreground'>
-      Turn finished
-      {usage && typeof usage.input_tokens === 'number' && (
-        <> · {usage.input_tokens + (usage.output_tokens ?? 0)} tokens</>
-      )}
-    </div>
-  )
+  const nodes: RenderNode[] = []
+
+  const flushActivity = (activity: RenderNode | null) => {
+    if (activity && activity.kind === 'activity' && activity.steps.length > 0) {
+      nodes.push(activity)
+    }
+  }
+
+  let activity:
+    | (RenderNode & { kind: 'activity' })
+    | null = null
+  let nextActivityCounter = 0
+
+  for (const event of events) {
+    if (event.type === 'prep') {
+      flushActivity(activity)
+      activity = null
+      nodes.push({
+        kind: 'prep',
+        id: event.id,
+        payload:
+          (event.payload as PrepPayload | null | undefined) ?? ({} as PrepPayload)
+      })
+      continue
+    }
+
+    if (event.type === 'error' || event.type === 'turn.failed') {
+      flushActivity(activity)
+      activity = null
+      const record =
+        typeof event.payload === 'object' && event.payload !== null
+          ? (event.payload as {
+              message?: string
+              error?: { message?: string }
+            })
+          : {}
+      const message =
+        record.message ?? record.error?.message ?? 'Unknown agent error'
+      nodes.push({ kind: 'error', id: event.id, message })
+      continue
+    }
+
+    if (event.type === 'merge.completed') {
+      flushActivity(activity)
+      activity = null
+      const record =
+        typeof event.payload === 'object' && event.payload !== null
+          ? (event.payload as { baseBranch?: string; branchName?: string })
+          : {}
+      nodes.push({
+        kind: 'merge',
+        id: event.id,
+        baseBranch: record.baseBranch,
+        branchName: record.branchName
+      })
+      continue
+    }
+
+    if (event.type === 'turn.completed') {
+      flushActivity(activity)
+      activity = null
+      continue
+    }
+
+    if (event.type === 'thread.started') {
+      continue
+    }
+
+    if (
+      event.type === 'item.started' ||
+      event.type === 'item.updated' ||
+      event.type === 'item.completed'
+    ) {
+      const item = getItem(event.payload)
+      if (!item) continue
+
+      // Agent messages: render finalized as card; render in-flight (only if no
+      // completion exists) as a streaming card.
+      if (item.type === 'agent_message') {
+        const text = (item as AgentMessageItem).text ?? ''
+
+        if (event.type === 'item.completed') {
+          flushActivity(activity)
+          activity = null
+          nodes.push({
+            kind: 'agent',
+            id: event.id,
+            text,
+            timestamp: formatTimestamp(event.createdAt),
+            streaming: false
+          })
+          continue
+        }
+
+        const itemId = item.id
+        if (!itemId || completedItemIds.has(itemId)) continue
+
+        // In-flight message — only render the *last* update per item id.
+        const existingIndex = nodes.findIndex(
+          (n) => n.kind === 'agent' && n.id === `streaming:${itemId}`
+        )
+        const streamingNode: RenderNode = {
+          kind: 'agent',
+          id: `streaming:${itemId}`,
+          text,
+          timestamp: formatTimestamp(event.createdAt),
+          streaming: true
+        }
+
+        if (existingIndex >= 0) {
+          nodes[existingIndex] = streamingNode
+        } else {
+          flushActivity(activity)
+          activity = null
+          nodes.push(streamingNode)
+        }
+        continue
+      }
+
+      // Todo lists render independently (not grouped into activity).
+      if (item.type === 'todo_list') {
+        if (event.type !== 'item.completed') continue
+        flushActivity(activity)
+        activity = null
+        const todoList = item as TodoListItem
+        nodes.push({
+          kind: 'todo',
+          id: event.id,
+          items: todoList.items ?? []
+        })
+        continue
+      }
+
+      // Tool calls are grouped into activity runs.
+      const step = stepForItem(
+        item,
+        event.type === 'item.completed' ? true : true,
+        `${event.id}:${event.type}`
+      )
+
+      if (!step) continue
+
+      const itemId = item.id ?? step.key
+      const isLive =
+        event.type !== 'item.completed' &&
+        (!item.id || !completedItemIds.has(item.id))
+
+      if (event.type === 'item.completed' || isLive) {
+        if (!activity) {
+          activity = {
+            kind: 'activity',
+            id: `activity-${nextActivityCounter++}`,
+            steps: [],
+            running: false
+          }
+        }
+
+        // Dedupe by item.id when possible so item.started+item.completed for
+        // the same command don't show twice.
+        const existingIdx = activity.steps.findIndex((s) =>
+          s.key.startsWith(`item:${itemId}:`)
+        )
+        const normalizedStep = {
+          ...step,
+          key: item.id
+            ? `item:${itemId}:${event.type}`
+            : `${step.key}:${activity.steps.length}`
+        }
+        if (existingIdx >= 0) {
+          activity.steps[existingIdx] = normalizedStep
+        } else {
+          activity.steps.push(normalizedStep)
+        }
+
+        if (isLive) activity.running = true
+      }
+    }
+  }
+
+  flushActivity(activity)
+
+  return nodes
 }
 
-const ErrorRow = ({ payload }: { payload: unknown }) => {
-  const record =
-    typeof payload === 'object' && payload !== null
-      ? (payload as { message?: string; error?: { message?: string } })
-      : {}
-  const message =
-    record.message ?? record.error?.message ?? 'Unknown agent error'
-
-  return (
-    <div
-      role='alert'
-      className='rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive'
-    >
-      {message}
-    </div>
-  )
-}
-
-export function AgentTranscript({ events }: { events: ThreadEvent[] }) {
+export function AgentTranscript({
+  events,
+  thread = null
+}: {
+  events: ThreadEvent[]
+  thread?: Thread | null
+}) {
   if (events.length === 0) {
     return (
-      <div className='text-xs text-muted-foreground'>No output yet.</div>
+      <div className='flex h-full items-center justify-center py-10'>
+        <p className='text-xs text-muted-foreground'>
+          No output yet. The agent hasn&apos;t said anything.
+        </p>
+      </div>
     )
   }
 
+  const nodes = buildNodes(events)
+  const running =
+    thread?.status === 'running' || thread?.status === 'starting'
+
   return (
-    <div className='space-y-2'>
-      {events.map((event) => {
-        if (event.type === 'prep') {
-          return (
-            <PrepRow
-              key={event.id}
-              payload={event.payload}
-            />
-          )
-        }
+    <div className='flex flex-col gap-2.5'>
+      <AnimatePresence initial={false}>
+        {nodes.map((node) => (
+          <RenderedNode
+            key={node.id}
+            node={node}
+          />
+        ))}
+      </AnimatePresence>
 
-        if (
-          event.type === 'item.completed' ||
-          event.type === 'item.started' ||
-          event.type === 'item.updated'
-        ) {
-          const item = getItemFromPayload(event.payload)
-
-          if (!item) return null
-
-          return (
-            <ItemRow
-              key={event.id}
-              item={item}
-            />
-          )
-        }
-
-        if (event.type === 'turn.completed') {
-          return (
-            <UsageRow
-              key={event.id}
-              payload={event.payload}
-            />
-          )
-        }
-
-        if (event.type === 'error' || event.type === 'turn.failed') {
-          return (
-            <ErrorRow
-              key={event.id}
-              payload={event.payload}
-            />
-          )
-        }
-
-        return null
-      })}
+      {running ? <RunningRow /> : null}
     </div>
+  )
+}
+
+function RenderedNode({ node }: { node: RenderNode }) {
+  if (node.kind === 'prep') return <PrepRow payload={node.payload} />
+  if (node.kind === 'agent') {
+    return (
+      <AgentMessageCard
+        text={node.text}
+        timestamp={node.timestamp}
+        streaming={node.streaming}
+      />
+    )
+  }
+  if (node.kind === 'activity')
+    return (
+      <ActivityStrip
+        steps={node.steps}
+        running={node.running}
+      />
+    )
+  if (node.kind === 'todo') return <TodoRow items={node.items} />
+  if (node.kind === 'error') return <ErrorRow message={node.message} />
+  if (node.kind === 'merge')
+    return (
+      <SystemRow>
+        Merged <span className='font-mono'>{node.branchName ?? 'branch'}</span>{' '}
+        into <span className='font-mono'>{node.baseBranch ?? 'main'}</span>.
+      </SystemRow>
+    )
+  if (node.kind === 'turn-complete') return null
+
+  return null
+}
+
+function SystemRow({ children }: { children: ReactNode }) {
+  return (
+    <div className='px-1 py-1 font-mono text-[11px] text-muted-foreground/80'>
+      <span className='mr-2 text-muted-foreground/40'>⎯</span>
+      {children}
+    </div>
+  )
+}
+
+function PrepRow({ payload }: { payload: PrepPayload }) {
+  const scope = payload.scope
+  const where = payload.workingDirectory ?? payload.worktreePath
+  const branch = payload.branchName
+
+  return (
+    <SystemRow>
+      {scope === 'project' ? 'Project agent ready in ' : 'Worktree ready at '}
+      {where ? <code className='font-mono'>{where}</code> : null}
+      {branch ? (
+        <>
+          {' on '}
+          <code className='font-mono'>{branch}</code>
+        </>
+      ) : null}
+    </SystemRow>
+  )
+}
+
+function toolIconFor(tool: ToolStep['tool']) {
+  if (tool === 'shell') return Terminal
+  if (tool === 'file') return FileEdit
+  if (tool === 'reasoning') return FileText
+  return FilePlus
+}
+
+function ActivityStrip({
+  steps,
+  running
+}: {
+  steps: ToolStep[]
+  running: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const failed = steps.filter((step) => !step.ok).length
+
+  const counts = steps.reduce<Record<string, number>>((acc, step) => {
+    acc[step.tool] = (acc[step.tool] ?? 0) + 1
+    return acc
+  }, {})
+  const labels: Record<string, string> = {
+    shell: 'command',
+    file: 'file edit',
+    reasoning: 'thought'
+  }
+  const summary = Object.entries(counts)
+    .map(([tool, n]) => `${n} ${labels[tool] ?? tool}${n > 1 ? 's' : ''}`)
+    .join(' · ')
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      <button
+        type='button'
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'group flex w-full items-center gap-3 rounded-lg border border-dashed px-3.5 py-2 text-left text-xs text-muted-foreground transition-colors',
+          'hover:bg-card hover:border-solid hover:text-foreground',
+          running && 'border-solid bg-card/60'
+        )}
+      >
+        <span
+          aria-hidden='true'
+          className={cn(
+            'inline-flex size-1.5 shrink-0 rounded-full bg-muted-foreground',
+            running && 'bg-banana animate-banana-pulse'
+          )}
+        />
+
+        <span className='flex-1 truncate'>
+          <span className='font-medium text-foreground'>
+            {running ? 'Working' : 'Activity'}
+          </span>
+          <span className='text-muted-foreground'> · {summary}</span>
+          {failed > 0 ? (
+            <span className='ml-2 text-[color:var(--destructive)]'>
+              · {failed} failed
+            </span>
+          ) : null}
+        </span>
+
+        <span className='inline-flex items-center gap-1'>
+          {steps.slice(0, 6).map((step) => {
+            const Icon = toolIconFor(step.tool)
+            return (
+              <span
+                key={step.key}
+                className={cn(
+                  'inline-grid size-5 place-items-center rounded-md border bg-muted/50',
+                  !step.ok &&
+                    'border-[color:var(--destructive)]/40 bg-[color:var(--destructive)]/10 text-[color:var(--destructive)]'
+                )}
+              >
+                <Icon
+                  aria-hidden='true'
+                  className='size-3'
+                />
+              </span>
+            )
+          })}
+        </span>
+
+        {open ? (
+          <ChevronDown
+            aria-hidden='true'
+            className='size-3 shrink-0'
+          />
+        ) : (
+          <ChevronRight
+            aria-hidden='true'
+            className='size-3 shrink-0'
+          />
+        )}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.18 }}
+            className='mt-1 overflow-hidden'
+          >
+            <div className='grid gap-1 rounded-lg border bg-card px-3.5 py-2.5'>
+              {steps.map((step) => {
+                const Icon = toolIconFor(step.tool)
+                return (
+                  <div
+                    key={step.key}
+                    className={cn(
+                      'grid grid-cols-[16px_1fr_auto] items-center gap-3 text-xs',
+                      !step.ok && 'text-muted-foreground'
+                    )}
+                  >
+                    <Icon
+                      aria-hidden='true'
+                      className={cn(
+                        'size-3',
+                        !step.ok && 'text-[color:var(--destructive)]'
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        'truncate font-mono text-[11.5px] text-foreground',
+                        !step.ok &&
+                          'text-muted-foreground line-through decoration-muted-foreground/40'
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                    {step.detail ? (
+                      <span className='font-mono text-[11px] text-muted-foreground'>
+                        {step.detail}
+                      </span>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+function TodoRow({
+  items
+}: {
+  items: Array<{ text: string; completed: boolean }>
+}) {
+  return (
+    <motion.ul
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className='rounded-lg border bg-card px-3.5 py-2.5 text-xs'
+    >
+      {items.map((todo, index) => (
+        <li
+          key={`${todo.text}-${index}`}
+          className='flex gap-2 py-0.5'
+        >
+          <span aria-hidden='true'>{todo.completed ? '☑' : '☐'}</span>
+          <span className={todo.completed ? 'line-through opacity-60' : ''}>
+            {todo.text}
+          </span>
+        </li>
+      ))}
+    </motion.ul>
+  )
+}
+
+function ErrorRow({ message }: { message: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      role='alert'
+      className='flex items-start gap-2 rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3.5 py-2.5 text-xs text-[color:var(--destructive)]'
+    >
+      <AlertTriangle
+        aria-hidden='true'
+        className='mt-0.5 size-3.5 shrink-0'
+      />
+      <span className='whitespace-pre-wrap'>{message}</span>
+    </motion.div>
+  )
+}
+
+function RunningRow() {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className='flex items-center gap-3 rounded-lg border bg-card px-3.5 py-2.5'
+    >
+      <Loader2
+        aria-hidden='true'
+        className='size-3.5 animate-spin text-banana'
+      />
+      <span className='text-sm font-medium'>Working…</span>
+      <span className='ml-auto font-mono text-[11px] text-muted-foreground'>
+        live
+      </span>
+    </motion.div>
   )
 }

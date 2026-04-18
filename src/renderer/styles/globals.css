@@ -1,67 +1,125 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+@plugin '@tailwindcss/typography';
+
 @custom-variant dark (&:is(.dark *));
 
+/* Catppuccin Latte — light mode */
 :root {
-  --background: oklch(0.985 0.003 95);
-  --foreground: oklch(0.18 0.02 60);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 60);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 60);
-  --primary: oklch(0.85 0.18 95);
-  --primary-foreground: oklch(0.2 0.05 60);
-  --secondary: oklch(0.95 0.01 80);
-  --secondary-foreground: oklch(0.2 0.02 60);
-  --muted: oklch(0.95 0.008 80);
-  --muted-foreground: oklch(0.48 0.02 60);
-  --accent: oklch(0.94 0.02 90);
-  --accent-foreground: oklch(0.2 0.02 60);
-  --destructive: oklch(0.62 0.22 25);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.9 0.01 80);
-  --input: oklch(0.9 0.01 80);
-  --ring: oklch(0.78 0.14 95);
+  --ctp-base: #eff1f5;
+  --ctp-mantle: #e6e9ef;
+  --ctp-crust: #dce0e8;
+  --ctp-surface0: #ccd0da;
+  --ctp-surface1: #bcc0cc;
+  --ctp-surface2: #acb0be;
+  --ctp-overlay0: #9ca0b0;
+  --ctp-overlay1: #8c8fa1;
+  --ctp-overlay2: #7c7f93;
+  --ctp-text: #4c4f69;
+  --ctp-subtext1: #5c5f77;
+  --ctp-subtext0: #6c6f85;
+  --ctp-rosewater: #dc8a78;
+  --ctp-flamingo: #dd7878;
+  --ctp-pink: #ea76cb;
+  --ctp-mauve: #8839ef;
+  --ctp-red: #d20f39;
+  --ctp-maroon: #e64553;
+  --ctp-peach: #fe640b;
+  --ctp-yellow: #df8e1d;
+  --ctp-green: #40a02b;
+  --ctp-teal: #179299;
+  --ctp-sky: #04a5e5;
+  --ctp-sapphire: #209fb5;
+  --ctp-blue: #1e66f5;
+  --ctp-lavender: #7287fd;
+
+  --background: var(--ctp-base);
+  --foreground: var(--ctp-text);
+  --card: var(--ctp-mantle);
+  --card-foreground: var(--ctp-text);
+  --popover: var(--ctp-mantle);
+  --popover-foreground: var(--ctp-text);
+  --primary: var(--ctp-peach);
+  --primary-foreground: var(--ctp-base);
+  --secondary: var(--ctp-surface0);
+  --secondary-foreground: var(--ctp-text);
+  --muted: var(--ctp-surface0);
+  --muted-foreground: var(--ctp-overlay1);
+  --accent: var(--ctp-surface0);
+  --accent-foreground: var(--ctp-text);
+  --destructive: var(--ctp-red);
+  --destructive-foreground: var(--ctp-base);
+  --border: var(--ctp-surface0);
+  --input: var(--ctp-surface0);
+  --ring: var(--ctp-peach);
   --radius: 0.5rem;
-  --sidebar: oklch(0.97 0.006 90);
-  --sidebar-foreground: oklch(0.18 0.02 60);
-  --sidebar-primary: oklch(0.85 0.18 95);
-  --sidebar-primary-foreground: oklch(0.2 0.05 60);
-  --sidebar-accent: oklch(0.93 0.02 90);
-  --sidebar-accent-foreground: oklch(0.2 0.02 60);
-  --sidebar-border: oklch(0.9 0.01 80);
-  --sidebar-ring: oklch(0.78 0.14 95);
+  --sidebar: var(--ctp-mantle);
+  --sidebar-foreground: var(--ctp-text);
+  --sidebar-primary: var(--ctp-peach);
+  --sidebar-primary-foreground: var(--ctp-base);
+  --sidebar-accent: var(--ctp-surface0);
+  --sidebar-accent-foreground: var(--ctp-text);
+  --sidebar-border: var(--ctp-surface0);
+  --sidebar-ring: var(--ctp-peach);
 }
 
+/* Catppuccin Macchiato — dark mode default */
 .dark {
-  --background: oklch(0.16 0.01 60);
-  --foreground: oklch(0.96 0.01 90);
-  --card: oklch(0.2 0.01 60);
-  --card-foreground: oklch(0.96 0.01 90);
-  --popover: oklch(0.22 0.01 60);
-  --popover-foreground: oklch(0.96 0.01 90);
-  --primary: oklch(0.84 0.18 95);
-  --primary-foreground: oklch(0.2 0.05 60);
-  --secondary: oklch(0.25 0.01 60);
-  --secondary-foreground: oklch(0.96 0.01 90);
-  --muted: oklch(0.24 0.01 60);
-  --muted-foreground: oklch(0.68 0.02 80);
-  --accent: oklch(0.28 0.02 70);
-  --accent-foreground: oklch(0.96 0.01 90);
-  --destructive: oklch(0.65 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.78 0.14 95);
-  --sidebar: oklch(0.14 0.01 60);
-  --sidebar-foreground: oklch(0.96 0.01 90);
-  --sidebar-primary: oklch(0.84 0.18 95);
-  --sidebar-primary-foreground: oklch(0.2 0.05 60);
-  --sidebar-accent: oklch(0.24 0.01 60);
-  --sidebar-accent-foreground: oklch(0.96 0.01 90);
-  --sidebar-border: oklch(1 0 0 / 6%);
-  --sidebar-ring: oklch(0.78 0.14 95);
+  --ctp-base: #24273a;
+  --ctp-mantle: #1e2030;
+  --ctp-crust: #181926;
+  --ctp-surface0: #363a4f;
+  --ctp-surface1: #494d64;
+  --ctp-surface2: #5b6078;
+  --ctp-overlay0: #6e738d;
+  --ctp-overlay1: #8087a2;
+  --ctp-overlay2: #939ab7;
+  --ctp-text: #cad3f5;
+  --ctp-subtext1: #b8c0e0;
+  --ctp-subtext0: #a5adcb;
+  --ctp-rosewater: #f4dbd6;
+  --ctp-flamingo: #f0c6c6;
+  --ctp-pink: #f5bde6;
+  --ctp-mauve: #c6a0f6;
+  --ctp-red: #ed8796;
+  --ctp-maroon: #ee99a0;
+  --ctp-peach: #f5a97f;
+  --ctp-yellow: #eed49f;
+  --ctp-green: #a6da95;
+  --ctp-teal: #8bd5ca;
+  --ctp-sky: #91d7e3;
+  --ctp-sapphire: #7dc4e4;
+  --ctp-blue: #8aadf4;
+  --ctp-lavender: #b7bdf8;
+
+  --background: var(--ctp-mantle);
+  --foreground: var(--ctp-text);
+  --card: var(--ctp-base);
+  --card-foreground: var(--ctp-text);
+  --popover: var(--ctp-base);
+  --popover-foreground: var(--ctp-text);
+  --primary: var(--ctp-peach);
+  --primary-foreground: var(--ctp-crust);
+  --secondary: var(--ctp-surface0);
+  --secondary-foreground: var(--ctp-text);
+  --muted: var(--ctp-surface0);
+  --muted-foreground: var(--ctp-overlay1);
+  --accent: var(--ctp-surface1);
+  --accent-foreground: var(--ctp-text);
+  --destructive: var(--ctp-red);
+  --destructive-foreground: var(--ctp-crust);
+  --border: var(--ctp-surface0);
+  --input: var(--ctp-surface0);
+  --ring: var(--ctp-peach);
+  --sidebar: var(--ctp-mantle);
+  --sidebar-foreground: var(--ctp-text);
+  --sidebar-primary: var(--ctp-peach);
+  --sidebar-primary-foreground: var(--ctp-crust);
+  --sidebar-accent: var(--ctp-surface0);
+  --sidebar-accent-foreground: var(--ctp-text);
+  --sidebar-border: var(--ctp-surface0);
+  --sidebar-ring: var(--ctp-peach);
 }
 
 @theme inline {
@@ -97,12 +155,12 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans:
-    'Space Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
     'Helvetica Neue', sans-serif;
   --font-mono:
     'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --font-display:
-    'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -119,7 +177,7 @@
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: oklch(1 0 0 / 12%) transparent;
+    scrollbar-color: var(--ctp-surface1) transparent;
   }
 
   ::-webkit-scrollbar {
@@ -130,13 +188,13 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: oklch(1 0 0 / 12%);
+    background-color: var(--ctp-surface1);
     border-radius: 9999px;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: oklch(1 0 0 / 22%);
+    background-color: var(--ctp-surface2);
   }
   ::-webkit-scrollbar-corner {
     background: transparent;
@@ -146,25 +204,28 @@
 @layer utilities {
   .font-display {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
   }
+  /* The "banana" accent is the primary accent — now Catppuccin peach. Kept
+     as .bg-banana/.text-banana/etc. for backward compatibility with callsites
+     across the app. */
   .text-banana {
-    color: oklch(0.84 0.18 95);
+    color: var(--ctp-peach);
   }
   .bg-banana {
-    background-color: oklch(0.84 0.18 95);
+    background-color: var(--ctp-peach);
   }
   .bg-banana\/10 {
-    background-color: oklch(0.84 0.18 95 / 0.1);
+    background-color: color-mix(in oklab, var(--ctp-peach) 10%, transparent);
   }
   .bg-banana\/20 {
-    background-color: oklch(0.84 0.18 95 / 0.2);
+    background-color: color-mix(in oklab, var(--ctp-peach) 20%, transparent);
   }
   .ring-banana {
-    --tw-ring-color: oklch(0.84 0.18 95);
+    --tw-ring-color: var(--ctp-peach);
   }
   .border-banana {
-    border-color: oklch(0.84 0.18 95);
+    border-color: var(--ctp-peach);
   }
   @keyframes banana-pulse {
     0%, 100% {
@@ -178,5 +239,90 @@
   }
   .animate-banana-pulse {
     animation: banana-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* State colors — shared by state pills and progress indicators.
+     Values come from the Catppuccin palette so they theme-switch. */
+  .state-amber {
+    --state-fg: var(--ctp-peach);
+    --state-bg: color-mix(in oklab, var(--ctp-peach) 14%, transparent);
+    --state-border: color-mix(in oklab, var(--ctp-peach) 40%, transparent);
+  }
+  .state-violet {
+    --state-fg: var(--ctp-mauve);
+    --state-bg: color-mix(in oklab, var(--ctp-mauve) 14%, transparent);
+    --state-border: color-mix(in oklab, var(--ctp-mauve) 40%, transparent);
+  }
+  .state-blue {
+    --state-fg: var(--ctp-blue);
+    --state-bg: color-mix(in oklab, var(--ctp-blue) 14%, transparent);
+    --state-border: color-mix(in oklab, var(--ctp-blue) 40%, transparent);
+  }
+  .state-green {
+    --state-fg: var(--ctp-green);
+    --state-bg: color-mix(in oklab, var(--ctp-green) 14%, transparent);
+    --state-border: color-mix(in oklab, var(--ctp-green) 40%, transparent);
+  }
+  .state-red {
+    --state-fg: var(--ctp-red);
+    --state-bg: color-mix(in oklab, var(--ctp-red) 18%, transparent);
+    --state-border: color-mix(in oklab, var(--ctp-red) 40%, transparent);
+  }
+  .state-muted {
+    --state-fg: var(--muted-foreground);
+    --state-bg: transparent;
+    --state-border: var(--border);
+  }
+
+  /* Blinking streaming cursor used inside agent messages. */
+  @keyframes cursor-blink {
+    0%, 20% { opacity: 0.2; }
+    50% { opacity: 1; }
+    80%, 100% { opacity: 0.2; }
+  }
+  .animate-cursor-blink {
+    animation: cursor-blink 1s infinite;
+  }
+
+  /* Compact prose variant for inline agent messages. */
+  .prose-agent {
+    --tw-prose-body: var(--foreground);
+    --tw-prose-headings: var(--foreground);
+    --tw-prose-links: var(--ctp-peach);
+    --tw-prose-bold: var(--foreground);
+    --tw-prose-code: var(--foreground);
+    --tw-prose-pre-code: var(--foreground);
+    --tw-prose-pre-bg: var(--muted);
+    --tw-prose-quotes: var(--muted-foreground);
+    --tw-prose-quote-borders: var(--border);
+    --tw-prose-hr: var(--border);
+    --tw-prose-bullets: var(--muted-foreground);
+    --tw-prose-counters: var(--muted-foreground);
+  }
+  .prose-agent :where(code):not(:where([class~='not-prose'] *)) {
+    background: var(--muted);
+    padding: 0.12em 0.4em;
+    border-radius: 0.35rem;
+    font-size: 0.88em;
+    font-weight: 500;
+  }
+  .prose-agent :where(code):not(:where([class~='not-prose'] *))::before,
+  .prose-agent :where(code):not(:where([class~='not-prose'] *))::after {
+    content: '';
+  }
+  .prose-agent :where(pre):not(:where([class~='not-prose'] *)) {
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    padding: 0.75rem 0.9rem;
+  }
+  .prose-agent :where(p):not(:where([class~='not-prose'] *)) {
+    margin-top: 0.4rem;
+    margin-bottom: 0.4rem;
+  }
+  .prose-agent :where(p:first-child):not(:where([class~='not-prose'] *)) {
+    margin-top: 0;
+  }
+  .prose-agent :where(p:last-child):not(:where([class~='not-prose'] *)) {
+    margin-bottom: 0;
   }
 }

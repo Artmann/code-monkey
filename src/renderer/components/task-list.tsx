@@ -21,7 +21,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Check, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import {
   useReorderTasksMutation,
   useUpdateTaskMutation,
@@ -383,7 +383,7 @@ interface TaskRowProps {
 
 function TaskRow({
   task,
-  projectId,
+  projectId: _projectId,
   isOverlay = false,
   isSelected = false
 }: TaskRowProps) {
@@ -392,7 +392,7 @@ function TaskRow({
   const StatusIcon = statusMeta.icon
   const AgentIcon = agentMeta.icon
 
-  const navigate = useNavigate()
+  const [, setSearchParams] = useSearchParams()
   const updateTask = useUpdateTaskMutation()
 
   const sortable = useSortable({
@@ -427,14 +427,18 @@ function TaskRow({
     agentMeta.highlightRow &&
       'border-l-banana bg-banana/[0.06] hover:bg-banana/[0.1]',
     task.agentState === 'working' &&
-      'border-l-sky-500/60 bg-sky-500/[0.04] hover:bg-sky-500/[0.08]',
+      'border-l-banana/60 bg-banana/[0.04] hover:bg-banana/[0.08]',
     isSelected && 'bg-accent/60 hover:bg-accent/60',
     isDragging && !isOverlay && 'opacity-40',
     isOverlay && 'border bg-background shadow-lg'
   )
 
   function handleRowClick() {
-    navigate(`/projects/${projectId}/tasks/${task.id}`)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('task', task.id)
+      return next
+    })
   }
 
   const rowContent = (

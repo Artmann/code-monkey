@@ -38,8 +38,8 @@ const agentStateTable: Record<AgentState, AgentStateMeta> = {
     value: 'waiting_for_input',
     label: 'Waiting for input',
     icon: Hourglass,
-    iconClassName: 'text-amber-500',
-    badgeClassName: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    iconClassName: 'text-[color:var(--ctp-blue)]',
+    badgeClassName: 'state-blue',
     highlightRow: true,
     animate: false
   },
@@ -47,8 +47,8 @@ const agentStateTable: Record<AgentState, AgentStateMeta> = {
     value: 'working',
     label: 'Working',
     icon: Loader2,
-    iconClassName: 'text-sky-500',
-    badgeClassName: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+    iconClassName: 'text-[color:var(--ctp-peach)]',
+    badgeClassName: 'state-amber',
     highlightRow: false,
     animate: true
   },
@@ -56,8 +56,8 @@ const agentStateTable: Record<AgentState, AgentStateMeta> = {
     value: 'done',
     label: 'Done',
     icon: CheckCheck,
-    iconClassName: 'text-emerald-500',
-    badgeClassName: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    iconClassName: 'text-[color:var(--ctp-green)]',
+    badgeClassName: 'state-green',
     highlightRow: false,
     animate: false
   }

@@ -1,20 +1,24 @@
-import { useState } from 'react'
+import { SendHorizontal } from 'lucide-react'
+import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { Task } from '../hooks/use-tasks'
 import type { Thread, ThreadEvent } from '../hooks/use-thread'
+import { cn } from '../lib/utils'
 import { AgentTranscript } from './agent-transcript'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 
 export type AgentPaneProps = {
-  task: Task
+  task?: Task | null
   thread: Thread | null
   events: ThreadEvent[]
   providerConfigured: boolean
   onSendMessage: (text: string) => void
   isSending: boolean
   mergeError?: string | null
+  emptyState?: ReactNode
+  allowSendWithoutThread?: boolean
 }
 
 const Composer = ({
@@ -29,38 +33,63 @@ const Composer = ({
   const submit = () => {
     const value = text.trim()
 
-    if (!value) return
+    if (!value || disabled) return
 
     onSend(value)
     setText('')
   }
 
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      submit()
+    }
+  }
+
   return (
     <form
-      className='flex items-end gap-2'
       onSubmit={(event) => {
         event.preventDefault()
         submit()
       }}
+      className={cn(
+        'flex flex-col gap-2 rounded-xl border bg-card px-3 py-2.5 transition-colors',
+        'focus-within:border-muted-foreground/50'
+      )}
     >
       <Textarea
-        placeholder='Type a follow-up…'
+        placeholder='Nudge the agent, or type a follow-up…'
         value={text}
         onChange={(event) => setText(event.target.value)}
+        onKeyDown={onKeyDown}
         disabled={disabled}
-        className='min-h-[60px]'
+        rows={1}
+        className={cn(
+          'min-h-[40px] max-h-40 resize-none border-0 bg-transparent px-1 py-1 text-[13px] shadow-none focus-visible:ring-0'
+        )}
       />
-      <Button
-        type='submit'
-        disabled={disabled || text.trim() === ''}
-      >
-        Send
-      </Button>
+      <div className='flex items-center gap-2'>
+        <span className='ml-1 text-[11px] text-muted-foreground/70'>
+          Enter to send · ⇧Enter for newline
+        </span>
+        <Button
+          type='submit'
+          size='sm'
+          disabled={disabled || text.trim() === ''}
+          className='ml-auto h-7 gap-1.5 px-3 text-xs'
+        >
+          <SendHorizontal
+            aria-hidden='true'
+            className='size-3'
+          />
+          Send
+        </Button>
+      </div>
     </form>
   )
 }
 
-const EmptyState = ({
+const TaskEmptyState = ({
   task,
   providerConfigured
 }: {
@@ -69,21 +98,21 @@ const EmptyState = ({
 }) => {
   if (task.status === 'done') {
     return (
-      <div className='rounded-md border p-4 text-sm text-muted-foreground'>
+      <div className='rounded-xl border bg-card px-4 py-4 text-sm text-muted-foreground'>
         This task is marked as done.
       </div>
     )
   }
 
   return (
-    <div className='flex flex-col gap-2 rounded-md border p-4 text-sm'>
+    <div className='flex flex-col gap-2 rounded-xl border bg-card px-4 py-4 text-sm'>
       <p className='text-muted-foreground'>
         This task has no agent thread yet. Use{' '}
-        <span className='font-medium text-foreground'>Start Work</span> above
-        to begin.
+        <span className='font-medium text-foreground'>Start Work</span> above to
+        begin.
       </p>
       {!providerConfigured && (
-        <p className='text-xs text-amber-600'>
+        <p className='text-xs text-[color:var(--ctp-yellow)]'>
           <Link
             to='/settings'
             className='underline'
@@ -104,46 +133,75 @@ export function AgentPane({
   providerConfigured,
   onSendMessage,
   isSending,
-  mergeError = null
+  mergeError = null,
+  emptyState,
+  allowSendWithoutThread = false
 }: AgentPaneProps) {
-  if (!thread) {
+  if (!thread && !allowSendWithoutThread) {
+    if (emptyState !== undefined) {
+      return <>{emptyState}</>
+    }
+
+    if (task) {
+      return (
+        <TaskEmptyState
+          task={task}
+          providerConfigured={providerConfigured}
+        />
+      )
+    }
+
     return (
-      <EmptyState
-        task={task}
-        providerConfigured={providerConfigured}
-      />
+      <div className='rounded-xl border bg-card px-4 py-4 text-sm text-muted-foreground'>
+        No conversation yet.
+      </div>
     )
   }
 
   const threadBusy =
-    thread.status === 'running' || thread.status === 'starting'
-  const composerDisabled = threadBusy || isSending
+    thread?.status === 'running' || thread?.status === 'starting'
+  const composerDisabled = threadBusy || isSending || !providerConfigured
 
   return (
     <div className='flex h-full min-h-0 flex-1 flex-col overflow-hidden'>
-      {thread.status === 'error' && thread.errorMessage && (
-        <div
+      {thread?.status === 'error' && thread.errorMessage ? (
+        <p
           role='alert'
-          className='shrink-0 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive'
+          className='mb-2 shrink-0 rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-2 text-xs text-[color:var(--destructive)]'
         >
           {thread.errorMessage}
-        </div>
-      )}
+        </p>
+      ) : null}
 
       <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
-        <AgentTranscript events={events} />
+        <AgentTranscript
+          events={events}
+          thread={thread}
+        />
       </div>
 
       {mergeError && (
         <p
           role='alert'
-          className='shrink-0 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive'
+          className='mt-2 shrink-0 rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-2 text-xs text-[color:var(--destructive)]'
         >
           {mergeError}
         </p>
       )}
 
-      <div className='shrink-0 pt-3'>
+      {!providerConfigured && (
+        <p className='mt-2 shrink-0 text-xs text-[color:var(--ctp-yellow)]'>
+          <Link
+            to='/settings'
+            className='underline'
+          >
+            Configure Codex
+          </Link>{' '}
+          before sending messages.
+        </p>
+      )}
+
+      <div className='mt-3 shrink-0'>
         <Composer
           disabled={composerDisabled}
           onSend={onSendMessage}

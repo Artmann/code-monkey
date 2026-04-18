@@ -95,12 +95,34 @@ const seedEvent = (
     .run()
 }
 
+const seedProjectThread = (database: TestDatabase, projectId: string) => {
+  const [thread] = database
+    .insert(schema.threads)
+    .values({
+      taskId: null,
+      projectId,
+      worktreePath: '/home/u/Code/example',
+      branchName: 'main',
+      baseBranch: null,
+      status: 'running'
+    })
+    .returning()
+    .all()
+
+  invariant(thread, 'project thread missing')
+
+  return thread
+}
+
 type FakeRunnerState = {
   startCalls: string[]
+  startProjectCalls: Array<{ projectId: string; text: string }>
   continueCalls: Array<{ threadId: string; text: string }>
   mergeCalls: string[]
   threadId: string | null
+  projectThreadId: string | null
   mergeError: Error | null
+  startProjectError: Error | null
 }
 
 const createFakeRunner = (
@@ -113,6 +135,17 @@ const createFakeRunner = (
     const thread = seedThread(database, taskId)
 
     state.threadId = thread.id
+
+    return { threadId: thread.id }
+  },
+  startProjectThread: async (projectId, text) => {
+    state.startProjectCalls.push({ projectId, text })
+
+    if (state.startProjectError) throw state.startProjectError
+
+    const thread = seedProjectThread(database, projectId)
+
+    state.projectThreadId = thread.id
 
     return { threadId: thread.id }
   },
@@ -146,10 +179,13 @@ describe('threads routes', () => {
     broker = createEventBroker<PersistedEvent>()
     runnerState = {
       startCalls: [],
+      startProjectCalls: [],
       continueCalls: [],
       mergeCalls: [],
       threadId: null,
-      mergeError: null
+      projectThreadId: null,
+      mergeError: null,
+      startProjectError: null
     }
     runner = createFakeRunner(database, runnerState)
   })
@@ -377,5 +413,74 @@ describe('threads routes', () => {
     const body = (await response.json()) as { error: string }
 
     expect(body.error).toMatch(/merge conflict/i)
+  })
+
+  test('POST /projects/:projectId/threads calls startProjectThread', async () => {
+    const { project } = seedProjectAndTask(database)
+
+    const response = await buildRoutes().request(
+      `/projects/${project.id}/threads`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: 'list files' })
+      }
+    )
+
+    expect(response.status).toEqual(201)
+
+    const body = (await response.json()) as {
+      thread: { id: string; projectId: string; taskId: string | null }
+    }
+
+    expect(body.thread.id).toEqual(runnerState.projectThreadId)
+    expect(body.thread.projectId).toEqual(project.id)
+    expect(body.thread.taskId).toBeNull()
+    expect(runnerState.startProjectCalls).toEqual([
+      { projectId: project.id, text: 'list files' }
+    ])
+  })
+
+  test('POST /projects/:projectId/threads returns 500 when runner throws', async () => {
+    const { project } = seedProjectAndTask(database)
+
+    runnerState.startProjectError = new Error('no provider')
+
+    const response = await buildRoutes().request(
+      `/projects/${project.id}/threads`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: 'hi' })
+      }
+    )
+
+    expect(response.status).toEqual(500)
+
+    const body = (await response.json()) as { error: string }
+
+    expect(body.error).toEqual('no provider')
+  })
+
+  test('GET /projects/:projectId/threads returns only project-scoped threads', async () => {
+    const { project, task } = seedProjectAndTask(database)
+
+    const taskThread = seedThread(database, task.id)
+    const projectThread = seedProjectThread(database, project.id)
+
+    const response = await buildRoutes().request(
+      `/projects/${project.id}/threads`
+    )
+
+    expect(response.status).toEqual(200)
+
+    const body = (await response.json()) as {
+      threads: Array<{ id: string }>
+    }
+
+    const ids = body.threads.map((thread) => thread.id)
+
+    expect(ids).toContain(projectThread.id)
+    expect(ids).not.toContain(taskThread.id)
   })
 })

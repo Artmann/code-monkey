@@ -51,6 +51,9 @@ export type AgentRunnerWorktreeRemoveInput = {
   thread: { worktreePath: string; branchName: string }
 }
 
+export type ResolveProjectHeadInput = { directoryPath: string }
+export type ResolveProjectHeadResult = { branchName: string | null }
+
 export type AgentRunnerDependencies = {
   database: AgentRunnerDatabase
   broker: EventBroker<PersistedEvent>
@@ -61,6 +64,9 @@ export type AgentRunnerDependencies = {
     remove: (args: AgentRunnerWorktreeRemoveInput) => Promise<void>
   }
   merge: (args: MergeTaskInput) => Promise<MergeTaskResult>
+  resolveProjectHead?: (
+    args: ResolveProjectHeadInput
+  ) => Promise<ResolveProjectHeadResult>
   now?: () => Date
 }
 
@@ -68,6 +74,10 @@ export type StartResult = { threadId: string }
 
 export type AgentRunner = {
   start: (taskId: string) => Promise<StartResult>
+  startProjectThread: (
+    projectId: string,
+    initialMessage: string
+  ) => Promise<StartResult>
   continueThread: (threadId: string, text: string) => Promise<void>
   recoverOrphanedThreads: () => void
   mergeTask: (taskId: string) => Promise<MergeTaskResult>
@@ -142,10 +152,24 @@ export const createAgentRunner = (
     providerSettings,
     worktree,
     merge,
+    resolveProjectHead,
     now
   } = dependencies
 
   const clock = now ?? (() => new Date())
+
+  const setTaskAgentState = (
+    taskId: string | null,
+    agentState: 'idle' | 'waiting_for_input' | 'working' | 'done'
+  ) => {
+    if (!taskId) return
+
+    database
+      .update(schema.tasks)
+      .set({ agentState, updatedAt: clock() })
+      .where(eq(schema.tasks.id, taskId))
+      .run()
+  }
 
   const appendEvent = (
     threadId: string,
@@ -189,7 +213,7 @@ export const createAgentRunner = (
 
   const handleStreamEvent = (
     threadId: string,
-    taskId: string,
+    taskId: string | null,
     event: SdkEvent
   ) => {
     appendEvent(threadId, event.type, event)
@@ -214,11 +238,7 @@ export const createAgentRunner = (
         .where(eq(schema.threads.id, threadId))
         .run()
 
-      database
-        .update(schema.tasks)
-        .set({ agentState: 'done', updatedAt: clock() })
-        .where(eq(schema.tasks.id, taskId))
-        .run()
+      setTaskAgentState(taskId, 'done')
 
       return
     }
@@ -237,11 +257,7 @@ export const createAgentRunner = (
         .where(eq(schema.threads.id, threadId))
         .run()
 
-      database
-        .update(schema.tasks)
-        .set({ agentState: 'idle', updatedAt: clock() })
-        .where(eq(schema.tasks.id, taskId))
-        .run()
+      setTaskAgentState(taskId, 'idle')
 
       return
     }
@@ -255,7 +271,7 @@ export const createAgentRunner = (
 
   const runStream = async (
     threadId: string,
-    taskId: string,
+    taskId: string | null,
     events: AsyncIterable<unknown>
   ) => {
     try {
@@ -374,14 +390,24 @@ export const createAgentRunner = (
       )
     }
 
-    const taskRow = database
-      .select()
-      .from(schema.tasks)
-      .where(eq(schema.tasks.id, threadRow.taskId))
-      .get()
+    const taskId = threadRow.taskId
 
-    if (!taskRow) {
-      throw new Error(`Task not found for thread: ${threadId}`)
+    if (taskId) {
+      const taskRow = database
+        .select()
+        .from(schema.tasks)
+        .where(eq(schema.tasks.id, taskId))
+        .get()
+
+      if (!taskRow) {
+        throw new Error(`Task not found for thread: ${threadId}`)
+      }
+    }
+
+    if (!threadRow.worktreePath) {
+      throw new Error(
+        `Thread has no working directory recorded: ${threadId}.`
+      )
     }
 
     database
@@ -390,11 +416,7 @@ export const createAgentRunner = (
       .where(eq(schema.threads.id, threadId))
       .run()
 
-    database
-      .update(schema.tasks)
-      .set({ agentState: 'working', updatedAt: clock() })
-      .where(eq(schema.tasks.id, taskRow.id))
-      .run()
+    setTaskAgentState(taskId, 'working')
 
     const codex = createCodex(settings)
     const thread = threadRow.codexThreadId
@@ -415,11 +437,11 @@ export const createAgentRunner = (
       try {
         const { events } = await thread.runStreamed(text)
 
-        await runStream(threadId, taskRow.id, events)
+        await runStream(threadId, taskId, events)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
-        handleStreamEvent(threadId, taskRow.id, { type: 'error', message })
+        handleStreamEvent(threadId, taskId, { type: 'error', message })
       }
     })()
   }
@@ -444,16 +466,18 @@ export const createAgentRunner = (
         .where(eq(schema.threads.id, thread.id))
         .run()
 
-      database
-        .update(schema.tasks)
-        .set({ agentState: 'idle', updatedAt: clock() })
-        .where(
-          and(
-            eq(schema.tasks.id, thread.taskId),
-            eq(schema.tasks.agentState, 'working')
+      if (thread.taskId) {
+        database
+          .update(schema.tasks)
+          .set({ agentState: 'idle', updatedAt: clock() })
+          .where(
+            and(
+              eq(schema.tasks.id, thread.taskId),
+              eq(schema.tasks.agentState, 'working')
+            )
           )
-        )
-        .run()
+          .run()
+      }
     }
   }
 
@@ -489,6 +513,16 @@ export const createAgentRunner = (
       )
     }
 
+    if (
+      !latestThread.worktreePath ||
+      !latestThread.branchName ||
+      !latestThread.baseBranch
+    ) {
+      throw new Error(
+        `Thread is missing branch/worktree metadata required to merge: ${latestThread.id}.`
+      )
+    }
+
     const result = await merge({
       project: { directoryPath: project.directoryPath },
       thread: {
@@ -515,5 +549,92 @@ export const createAgentRunner = (
     return result
   }
 
-  return { start, continueThread, recoverOrphanedThreads, mergeTask }
+  const startProjectThread = async (
+    projectId: string,
+    initialMessage: string
+  ): Promise<StartResult> => {
+    const settings = providerSettings()
+
+    if (!settings) {
+      throw new Error(
+        'Codex provider is not configured. Configure one in Settings before starting work.'
+      )
+    }
+
+    const project = database
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get()
+
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`)
+    }
+
+    const head = resolveProjectHead
+      ? await resolveProjectHead({ directoryPath: project.directoryPath })
+      : { branchName: null }
+
+    const threadId = database.transaction((tx) => {
+      const [threadRow] = tx
+        .insert(schema.threads)
+        .values({
+          taskId: null,
+          projectId: project.id,
+          worktreePath: project.directoryPath,
+          branchName: head.branchName,
+          baseBranch: null,
+          status: 'running'
+        })
+        .returning()
+        .all()
+
+      invariant(threadRow, 'threads insert returned no row')
+
+      tx.insert(schema.threadEvents)
+        .values({
+          threadId: threadRow.id,
+          sequence: 0,
+          type: 'prep',
+          payload: JSON.stringify({
+            workingDirectory: project.directoryPath,
+            branchName: head.branchName,
+            scope: 'project'
+          })
+        })
+        .run()
+
+      return threadRow.id
+    })
+
+    const codex = createCodex(settings)
+    const thread = codex.startThread({
+      workingDirectory: project.directoryPath,
+      skipGitRepoCheck: false,
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'never'
+    })
+
+    void (async () => {
+      try {
+        const { events } = await thread.runStreamed(initialMessage)
+
+        await runStream(threadId, null, events)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+
+        handleStreamEvent(threadId, null, { type: 'error', message })
+      }
+    })()
+
+    return { threadId }
+  }
+
+  return {
+    start,
+    startProjectThread,
+    continueThread,
+    recoverOrphanedThreads,
+    mergeTask
+  }
 }
