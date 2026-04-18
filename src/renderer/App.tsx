@@ -8,6 +8,7 @@ import {
   SidebarTrigger
 } from './components/ui/sidebar'
 import { useProjectsQuery } from './hooks/use-projects'
+import { useRoutePersistence } from './hooks/use-route-persistence'
 import { HomeRoute } from './routes/home-route'
 import { ProjectRoute } from './routes/project-route'
 import { SettingsRoute } from './routes/settings-route'
@@ -27,6 +28,8 @@ function LegacyTaskRedirect() {
 }
 
 export function App() {
+  useRoutePersistence()
+
   const projectsQuery = useProjectsQuery()
   const [isDialogOpen, setDialogOpen] = useState(false)
 
