@@ -56,17 +56,18 @@ disk.
 
 ## Scripts
 
-| Script                 | What it does                                   |
-| ---------------------- | ---------------------------------------------- |
-| `pnpm start`           | Launch the Electron dev build via electron-forge |
-| `pnpm test`            | Run vitest in watch mode                       |
-| `pnpm test:run`        | Run the full test suite once                   |
-| `pnpm lint`            | Run ESLint across `src/`                       |
-| `pnpm typecheck`       | Run `tsc --noEmit`                             |
-| `pnpm db:generate`     | Generate a drizzle migration from `schema.ts`  |
-| `pnpm package`         | Produce an unpacked Electron app               |
-| `pnpm make`            | Produce platform installers                    |
-| `pnpm publish`         | Publish releases via electron-forge            |
+| Script                 | What it does                                       |
+| ---------------------- | -------------------------------------------------- |
+| `pnpm start`           | Launch the Electron dev build via electron-forge   |
+| `pnpm test`            | Run vitest in watch mode                           |
+| `pnpm test:run`        | Run the full test suite once                       |
+| `pnpm lint`            | Run ESLint across `src/`                           |
+| `pnpm typecheck`       | Run `tsc --noEmit`                                 |
+| `pnpm db:generate`     | Generate a drizzle migration from `schema.ts`      |
+| `pnpm package`         | Produce an unpacked Electron app                   |
+| `pnpm make`            | Produce platform installers                        |
+| `pnpm build`           | Run typecheck + lint + tests and produce installers |
+| `pnpm publish`         | Build then publish a release via electron-forge    |
 
 ## Data locations
 
