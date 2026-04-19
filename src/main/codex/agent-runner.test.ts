@@ -30,7 +30,12 @@ type FakeEvent =
   | { type: 'turn.completed'; usage?: unknown }
   | { type: 'turn.failed'; error: { message: string } }
   | {
-      type: 'item.started' | 'item.updated' | 'item.completed'
+      type:
+        | 'item.started'
+        | 'item.updated'
+        | 'item.completed'
+        | 'item.approval_requested'
+        | 'item.approval_resolved'
       item: unknown
     }
   | { type: 'error'; message: string }

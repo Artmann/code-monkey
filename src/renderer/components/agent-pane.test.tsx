@@ -1,5 +1,6 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import invariant from 'tiny-invariant'
 import { describe, expect, test, vi } from 'vitest'
 
 import type { Thread } from '../hooks/use-thread'
@@ -169,7 +170,11 @@ describe('AgentPane', () => {
       name: /^approve$/i
     })
 
-    await user.click(approveButtons[0]!)
+    const firstApprove = approveButtons[0]
+
+    invariant(firstApprove, 'no approve button rendered')
+
+    await user.click(firstApprove)
 
     expect(onApprovalDecision).toHaveBeenCalledWith('req-1', {
       decision: 'approve'
