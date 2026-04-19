@@ -1,5 +1,20 @@
 export type ProviderKind = 'codex' | 'claude-code'
 
+export type ApprovalRequest = {
+  id: string
+  tool: string
+  input: unknown
+  summary: string
+}
+
+export type ApprovalDecision =
+  | { decision: 'approve' }
+  | { decision: 'reject'; reason?: string }
+
+export type OnApprovalRequest = (
+  request: ApprovalRequest
+) => Promise<ApprovalDecision>
+
 export type AgentThreadOptions = {
   workingDirectory?: string
   skipGitRepoCheck?: boolean
@@ -9,6 +24,7 @@ export type AgentThreadOptions = {
   // `.git` is a pointer to <main-repo>/.git/worktrees/<name>/ — outside the
   // worktree cwd — so `git add`/`commit` would otherwise be sandbox-blocked.
   additionalDirectories?: string[]
+  onApprovalRequest?: OnApprovalRequest
 }
 
 export type NormalizedEventType =
