@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, max } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import { join } from 'node:path'
 import invariant from 'tiny-invariant'
 
 import type {
@@ -74,6 +75,13 @@ export type AgentRunner = {
 const interruptionMessage = 'Interrupted by app exit'
 
 type SdkEvent = NormalizedEvent
+
+// Worktrees keep their git metadata under <main-repo>/.git/worktrees/<name>,
+// outside the agent's workspace. Without granting write access to the parent
+// repo's .git directory, sandboxed `git add` / `git commit` calls fail.
+const worktreeWritableRoots = (projectDirectoryPath: string): string[] => [
+  join(projectDirectoryPath, '.git')
+]
 
 const buildInitialPrompt = (task: {
   title: string
@@ -340,7 +348,8 @@ export const createAgentRunner = (
       workingDirectory: created.path,
       skipGitRepoCheck: false,
       sandboxMode: 'workspace-write',
-      approvalPolicy: 'never'
+      approvalPolicy: 'never',
+      additionalDirectories: worktreeWritableRoots(project.directoryPath)
     })
 
     void (async () => {
@@ -373,7 +382,7 @@ export const createAgentRunner = (
       throw new Error(`Task not found: ${taskId}`)
     }
 
-    const { task } = loaded
+    const { task, project } = loaded
 
     const [previousThread] = database
       .select()
@@ -476,7 +485,8 @@ export const createAgentRunner = (
       workingDirectory,
       skipGitRepoCheck: false,
       sandboxMode: 'workspace-write',
-      approvalPolicy: 'never'
+      approvalPolicy: 'never',
+      additionalDirectories: worktreeWritableRoots(project.directoryPath)
     })
 
     void (async () => {
@@ -515,16 +525,19 @@ export const createAgentRunner = (
 
     const taskId = threadRow.taskId
 
-    if (taskId) {
-      const taskRow = database
-        .select()
-        .from(schema.tasks)
-        .where(eq(schema.tasks.id, taskId))
-        .get()
+    // Task-scoped threads run in a git worktree, so the agent needs write
+    // access to the parent repo's .git/ to commit. Project-scoped threads
+    // run in the project root where .git is already inside the workspace.
+    let additionalDirectories: string[] = []
 
-      if (!taskRow) {
+    if (taskId) {
+      const loaded = loadTaskWithProject(database, taskId)
+
+      if (!loaded) {
         throw new Error(`Task not found for thread: ${threadId}`)
       }
+
+      additionalDirectories = worktreeWritableRoots(loaded.project.directoryPath)
     }
 
     if (!threadRow.worktreePath) {
@@ -558,13 +571,15 @@ export const createAgentRunner = (
           workingDirectory: threadRow.worktreePath,
           skipGitRepoCheck: false,
           sandboxMode: 'workspace-write',
-          approvalPolicy: 'never'
+          approvalPolicy: 'never',
+          additionalDirectories
         })
       : provider.startThread({
           workingDirectory: threadRow.worktreePath,
           skipGitRepoCheck: false,
           sandboxMode: 'workspace-write',
-          approvalPolicy: 'never'
+          approvalPolicy: 'never',
+          additionalDirectories
         })
 
     void (async () => {

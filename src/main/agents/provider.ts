@@ -5,6 +5,10 @@ export type AgentThreadOptions = {
   skipGitRepoCheck?: boolean
   sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'
   approvalPolicy?: 'never' | 'on-request' | 'on-failure' | 'untrusted'
+  // Extra writable roots beyond the workspace. Needed for git worktrees, where
+  // `.git` is a pointer to <main-repo>/.git/worktrees/<name>/ — outside the
+  // worktree cwd — so `git add`/`commit` would otherwise be sandbox-blocked.
+  additionalDirectories?: string[]
 }
 
 export type NormalizedEventType =

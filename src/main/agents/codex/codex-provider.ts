@@ -41,6 +41,10 @@ export const createCodexProvider = async (
       wrapThread(codex.resumeThread(externalId, options))
   }
 
+  // The Codex SDK's ThreadOptions accepts the additionalDirectories field
+  // directly (typed as string[] of extra writable roots). AgentThreadOptions
+  // is a structural superset, so pass-through works without explicit mapping.
+
   const runOneOff = async (input: OneOffAgentInput): Promise<string> =>
     runOneOffAgent({
       codex,
