@@ -3,10 +3,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import invariant from 'tiny-invariant'
+
 import { App } from './App'
 import { LAST_ROUTE_STORAGE_KEY } from './hooks/use-route-persistence'
 import { queryClient } from './lib/query-client'
 import { applyTheme, getStoredTheme } from './lib/theme'
+
 import './styles/globals.css'
 
 // Apply the saved theme before the first paint to avoid a flash.

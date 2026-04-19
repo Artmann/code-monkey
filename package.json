@@ -3,7 +3,7 @@
   "productName": "code-monkey",
   "version": "0.1.3",
   "description": "A local-first desktop workbench for coding agents. Each task runs in its own isolated git worktree with a streaming agent view.",
-  "main": "dist/main/main.js",
+  "main": ".vite/build/main.js",
   "bin": {
     "codemonkey": "bin/codemonkey.js"
   },
