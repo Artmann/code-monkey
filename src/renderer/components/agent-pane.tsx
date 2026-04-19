@@ -1,4 +1,4 @@
-import { SendHorizontal } from 'lucide-react'
+import { Loader2, SendHorizontal } from 'lucide-react'
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -16,6 +16,7 @@ export type AgentPaneProps = {
   providerConfigured: boolean
   onSendMessage: (text: string) => void
   isSending: boolean
+  isStartingNewChat?: boolean
   mergeError?: string | null
   emptyState?: ReactNode
   allowSendWithoutThread?: boolean
@@ -133,10 +134,34 @@ export function AgentPane({
   providerConfigured,
   onSendMessage,
   isSending,
+  isStartingNewChat = false,
   mergeError = null,
   emptyState,
   allowSendWithoutThread = false
 }: AgentPaneProps) {
+  if (isStartingNewChat) {
+    return (
+      <div className='flex h-full min-h-0 flex-1 flex-col overflow-hidden'>
+        <div className='flex min-h-0 flex-1 items-center justify-center'>
+          <div className='flex items-center gap-3 rounded-lg border bg-card px-4 py-3'>
+            <Loader2
+              aria-hidden='true'
+              className='size-4 animate-spin text-banana'
+            />
+            <span className='text-sm font-medium'>Starting new chat…</span>
+          </div>
+        </div>
+
+        <div className='mt-3 shrink-0'>
+          <Composer
+            disabled
+            onSend={onSendMessage}
+          />
+        </div>
+      </div>
+    )
+  }
+
   if (!thread && !allowSendWithoutThread) {
     if (emptyState !== undefined) {
       return <>{emptyState}</>

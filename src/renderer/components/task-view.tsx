@@ -196,6 +196,7 @@ export function TaskView({ task, onClose }: TaskViewProps) {
               providerConfigured={agent.providerConfigured}
               onSendMessage={agent.onSendMessage}
               isSending={agent.isSending}
+              isStartingNewChat={agent.isRestarting}
               mergeError={agent.mergeError}
             />
           </div>
