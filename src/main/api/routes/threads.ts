@@ -13,6 +13,14 @@ const messageSchema = z.object({
   text: z.string().min(1).max(20_000)
 })
 
+const approvalSchema = z.discriminatedUnion('decision', [
+  z.object({ decision: z.literal('approve') }),
+  z.object({
+    decision: z.literal('reject'),
+    reason: z.string().max(2_000).optional()
+  })
+])
+
 export type ThreadsRoutesDependencies = {
   database: BetterSQLite3Database<typeof schema>
   broker: EventBroker<PersistedEvent>
@@ -190,6 +198,26 @@ export const createThreadsRoutes = (
 
       try {
         await runner.continueThread(threadId, body.text)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+
+        return context.json({ error: message }, 500)
+      }
+
+      return context.json({ ok: true }, 202)
+    }
+  )
+
+  routes.post(
+    '/threads/:threadId/approvals/:requestId',
+    zValidator('json', approvalSchema),
+    async (context) => {
+      const threadId = context.req.param('threadId')
+      const requestId = context.req.param('requestId')
+      const decision = context.req.valid('json')
+
+      try {
+        await runner.respondToApproval(threadId, requestId, decision)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 

@@ -114,12 +114,21 @@ const seedProjectThread = (database: TestDatabase, projectId: string) => {
   return thread
 }
 
+type ApprovalCall = {
+  threadId: string
+  requestId: string
+  decision:
+    | { decision: 'approve' }
+    | { decision: 'reject'; reason?: string }
+}
+
 type FakeRunnerState = {
   startCalls: string[]
   restartCalls: string[]
   startProjectCalls: Array<{ projectId: string; text: string }>
   continueCalls: Array<{ threadId: string; text: string }>
   mergeCalls: string[]
+  approvalCalls: ApprovalCall[]
   threadId: string | null
   restartThreadId: string | null
   projectThreadId: string | null
@@ -180,7 +189,9 @@ const createFakeRunner = (
 
     return { mergeCommitSha: 'deadbeef', autoCommitted: false }
   },
-  respondToApproval: async () => undefined
+  respondToApproval: async (threadId, requestId, decision) => {
+    state.approvalCalls.push({ threadId, requestId, decision })
+  }
 })
 
 describe('threads routes', () => {
@@ -198,6 +209,7 @@ describe('threads routes', () => {
       startProjectCalls: [],
       continueCalls: [],
       mergeCalls: [],
+      approvalCalls: [],
       threadId: null,
       restartThreadId: null,
       projectThreadId: null,
@@ -529,5 +541,39 @@ describe('threads routes', () => {
 
     expect(ids).toContain(projectThread.id)
     expect(ids).not.toContain(taskThread.id)
+  })
+
+  test('POST /threads/:threadId/approvals/:requestId routes decision to runner', async () => {
+    const response = await buildRoutes().request(
+      '/threads/thread-1/approvals/req-1',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: 'reject', reason: 'nope' })
+      }
+    )
+
+    expect(response.status).toEqual(202)
+    expect(runnerState.approvalCalls).toEqual([
+      {
+        threadId: 'thread-1',
+        requestId: 'req-1',
+        decision: { decision: 'reject', reason: 'nope' }
+      }
+    ])
+  })
+
+  test('POST /threads/:threadId/approvals/:requestId rejects invalid decision', async () => {
+    const response = await buildRoutes().request(
+      '/threads/thread-1/approvals/req-1',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: 'maybe' })
+      }
+    )
+
+    expect(response.status).toEqual(400)
+    expect(runnerState.approvalCalls).toHaveLength(0)
   })
 })
