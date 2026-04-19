@@ -41,8 +41,6 @@ async function createMainWindow(): Promise<void> {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
     )
   }
-
-  mainWindow.webContents.openDevTools()
 }
 
 async function bootstrap(): Promise<void> {
