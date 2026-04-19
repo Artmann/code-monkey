@@ -114,7 +114,8 @@ const createFakeRunner = (
   recoverOrphanedThreads: () => undefined,
   mergeTask: async () => {
     throw new Error('not used in tasks tests')
-  }
+  },
+  respondToApproval: async () => undefined
 })
 
 describe('tasks routes', () => {

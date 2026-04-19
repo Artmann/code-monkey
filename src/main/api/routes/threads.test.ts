@@ -179,7 +179,8 @@ const createFakeRunner = (
       .run()
 
     return { mergeCommitSha: 'deadbeef', autoCommitted: false }
-  }
+  },
+  respondToApproval: async () => undefined
 })
 
 describe('threads routes', () => {

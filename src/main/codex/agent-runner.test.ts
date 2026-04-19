@@ -90,14 +90,25 @@ const createEventChannel = () => {
   }
 }
 
+type FakeThreadOptions = {
+  workingDirectory?: string
+  skipGitRepoCheck?: boolean
+  sandboxMode?: string
+  approvalPolicy?: string
+  onApprovalRequest?: (request: {
+    id: string
+    tool: string
+    input: unknown
+    summary: string
+  }) => Promise<
+    | { decision: 'approve' }
+    | { decision: 'reject'; reason?: string }
+  >
+}
+
 type FakeThread = {
   readonly handle: AgentThread
-  options: {
-    workingDirectory?: string
-    skipGitRepoCheck?: boolean
-    sandboxMode?: string
-    approvalPolicy?: string
-  }
+  options: FakeThreadOptions
   inputs: string[]
   emit: (event: FakeEvent) => void
   close: () => void
@@ -105,12 +116,7 @@ type FakeThread = {
 }
 
 const createFakeThread = (
-  options: {
-    workingDirectory?: string
-    skipGitRepoCheck?: boolean
-    sandboxMode?: string
-    approvalPolicy?: string
-  },
+  options: FakeThreadOptions,
   resumedFromId: string | null = null
 ): FakeThread => {
   const channel = createEventChannel()
@@ -868,6 +874,210 @@ describe('createAgentRunner', () => {
 
       expect(runningEvents.at(-1)?.type).toEqual('error')
       expect(startingEvents.at(-1)?.type).toEqual('error')
+    })
+  })
+
+  describe('respondToApproval', () => {
+    test('resolves a pending approval when the agent asks, flips state, and writes resolved event', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      const { threadId } = await harness.runner.start(task.id)
+
+      await waitFor(() => harness.threads.length === 1)
+
+      const [fakeThread] = harness.threads
+
+      invariant(fakeThread, 'fake thread missing')
+      invariant(
+        fakeThread.options.onApprovalRequest,
+        'onApprovalRequest callback not wired'
+      )
+
+      // The Claude Code provider would normally emit these events and invoke
+      // the callback; we simulate that end-to-end here.
+      fakeThread.emit({
+        type: 'item.approval_requested',
+        item: {
+          id: 'req-1',
+          tool: 'Bash',
+          input: { command: 'git commit' },
+          summary: 'git commit',
+          requestedAt: new Date().toISOString()
+        }
+      })
+
+      const decisionPromise =
+        fakeThread.options.onApprovalRequest({
+          id: 'req-1',
+          tool: 'Bash',
+          input: { command: 'git commit' },
+          summary: 'git commit'
+        })
+
+      await waitFor(
+        () => getTaskRow(harness.database, task.id)?.agentState === 'waiting_for_input'
+      )
+
+      await harness.runner.respondToApproval(threadId, 'req-1', {
+        decision: 'approve'
+      })
+
+      const decision = await decisionPromise
+
+      expect(decision).toEqual({ decision: 'approve' })
+    })
+
+    test('no-ops when the request id does not match', async () => {
+      const harness = createHarness()
+      const { task } = seedProjectAndTask(harness.database)
+
+      const { threadId } = await harness.runner.start(task.id)
+
+      await waitFor(() => harness.threads.length === 1)
+
+      const [fakeThread] = harness.threads
+
+      invariant(fakeThread, 'fake thread missing')
+      invariant(fakeThread.options.onApprovalRequest, 'missing callback')
+
+      let resolved = false
+
+      void fakeThread.options
+        .onApprovalRequest({
+          id: 'req-1',
+          tool: 'Bash',
+          input: {},
+          summary: 'x'
+        })
+        .then(() => {
+          resolved = true
+        })
+
+      await harness.runner.respondToApproval(threadId, 'wrong-id', {
+        decision: 'approve'
+      })
+
+      // Give the promise a turn to resolve if it were going to.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      expect(resolved).toEqual(false)
+    })
+  })
+
+  describe('recoverOrphanedThreads - unresolved approvals', () => {
+    test('writes synthetic rejection and flips task to idle', async () => {
+      const harness = createHarness()
+      const { project, task } = seedProjectAndTask(harness.database)
+
+      const [threadRow] = harness.database
+        .insert(schema.threads)
+        .values({
+          taskId: task.id,
+          worktreePath: `${project.directoryPath}.worktrees/t_abc`,
+          branchName: `code-monkey/${task.id}`,
+          baseBranch: 'main',
+          status: 'idle'
+        })
+        .returning()
+        .all()
+
+      invariant(threadRow, 'seeded thread missing')
+
+      harness.database
+        .update(schema.tasks)
+        .set({ agentState: 'waiting_for_input' })
+        .where(eq(schema.tasks.id, task.id))
+        .run()
+
+      harness.database
+        .insert(schema.threadEvents)
+        .values({
+          threadId: threadRow.id,
+          sequence: 0,
+          type: 'item.approval_requested',
+          payload: JSON.stringify({
+            item: {
+              id: 'req-stuck',
+              tool: 'Bash',
+              input: { command: 'git status' },
+              summary: 'git status'
+            }
+          })
+        })
+        .run()
+
+      harness.runner.recoverOrphanedThreads()
+
+      const events = getThreadEvents(harness.database, threadRow.id)
+      const resolved = events.find(
+        (event) => event.type === 'item.approval_resolved'
+      )
+
+      invariant(resolved, 'synthetic rejection event missing')
+
+      const payload = JSON.parse(resolved.payload) as {
+        item: { decision: string; reason: string; id: string }
+      }
+
+      expect(payload.item.decision).toEqual('reject')
+      expect(payload.item.reason).toEqual('app restarted')
+      expect(payload.item.id).toEqual('req-stuck')
+
+      const updatedTask = getTaskRow(harness.database, task.id)
+
+      expect(updatedTask?.agentState).toEqual('idle')
+    })
+
+    test('leaves already-resolved approvals alone', async () => {
+      const harness = createHarness()
+      const { project, task } = seedProjectAndTask(harness.database)
+
+      const [threadRow] = harness.database
+        .insert(schema.threads)
+        .values({
+          taskId: task.id,
+          worktreePath: `${project.directoryPath}.worktrees/t_done`,
+          branchName: `code-monkey/${task.id}`,
+          baseBranch: 'main',
+          status: 'idle'
+        })
+        .returning()
+        .all()
+
+      invariant(threadRow, 'seeded thread missing')
+
+      harness.database
+        .insert(schema.threadEvents)
+        .values([
+          {
+            threadId: threadRow.id,
+            sequence: 0,
+            type: 'item.approval_requested',
+            payload: JSON.stringify({ item: { id: 'req-ok' } })
+          },
+          {
+            threadId: threadRow.id,
+            sequence: 1,
+            type: 'item.approval_resolved',
+            payload: JSON.stringify({
+              item: { id: 'req-ok', decision: 'approve' }
+            })
+          }
+        ])
+        .run()
+
+      harness.runner.recoverOrphanedThreads()
+
+      const events = getThreadEvents(harness.database, threadRow.id)
+      const rejections = events.filter(
+        (event) =>
+          event.type === 'item.approval_resolved' &&
+          (JSON.parse(event.payload) as { item: { decision: string } }).item
+            .decision === 'reject'
+      )
+
+      expect(rejections).toHaveLength(0)
     })
   })
 

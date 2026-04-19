@@ -6,7 +6,10 @@ import invariant from 'tiny-invariant'
 import type {
   AgentProvider,
   AgentThread,
-  NormalizedEvent
+  ApprovalDecision,
+  ApprovalRequest,
+  NormalizedEvent,
+  OnApprovalRequest
 } from '../agents/provider'
 import * as schema from '../database/schema'
 import type { EventBroker } from './event-broker'
@@ -70,6 +73,11 @@ export type AgentRunner = {
   continueThread: (threadId: string, text: string) => Promise<void>
   recoverOrphanedThreads: () => void
   mergeTask: (taskId: string) => Promise<MergeTaskResult>
+  respondToApproval: (
+    threadId: string,
+    requestId: string,
+    decision: ApprovalDecision
+  ) => Promise<void>
 }
 
 const interruptionMessage = 'Interrupted by app exit'
@@ -158,6 +166,53 @@ export const createAgentRunner = (
       .set({ agentState, updatedAt: clock() })
       .where(eq(schema.tasks.id, taskId))
       .run()
+  }
+
+  type PendingApproval = {
+    requestId: string
+    resolve: (decision: ApprovalDecision) => void
+  }
+
+  const pendingApprovals = new Map<string, PendingApproval>()
+
+  const buildOnApprovalRequest = (
+    threadId: string,
+    taskId: string | null
+  ): OnApprovalRequest => {
+    return (request: ApprovalRequest) =>
+      new Promise<ApprovalDecision>((resolve) => {
+        const existing = pendingApprovals.get(threadId)
+
+        if (existing) {
+          // One in-flight approval per thread; auto-reject any concurrent
+          // request so the SDK can keep making progress. Not expected under
+          // normal turn-based SDK usage.
+          existing.resolve({
+            decision: 'reject',
+            reason: 'concurrent approval not supported'
+          })
+        }
+
+        pendingApprovals.set(threadId, {
+          requestId: request.id,
+          resolve
+        })
+
+        setTaskAgentState(taskId, 'waiting_for_input')
+      })
+  }
+
+  const respondToApproval = async (
+    threadId: string,
+    requestId: string,
+    decision: ApprovalDecision
+  ): Promise<void> => {
+    const pending = pendingApprovals.get(threadId)
+
+    if (!pending || pending.requestId !== requestId) return
+
+    pendingApprovals.delete(threadId)
+    pending.resolve(decision)
   }
 
   const appendEvent = (
@@ -349,7 +404,8 @@ export const createAgentRunner = (
       skipGitRepoCheck: false,
       sandboxMode: 'workspace-write',
       approvalPolicy: 'never',
-      additionalDirectories: worktreeWritableRoots(project.directoryPath)
+      additionalDirectories: worktreeWritableRoots(project.directoryPath),
+      onApprovalRequest: buildOnApprovalRequest(threadId, task.id)
     })
 
     void (async () => {
@@ -486,7 +542,8 @@ export const createAgentRunner = (
       skipGitRepoCheck: false,
       sandboxMode: 'workspace-write',
       approvalPolicy: 'never',
-      additionalDirectories: worktreeWritableRoots(project.directoryPath)
+      additionalDirectories: worktreeWritableRoots(project.directoryPath),
+      onApprovalRequest: buildOnApprovalRequest(threadId, task.id)
     })
 
     void (async () => {
@@ -566,20 +623,23 @@ export const createAgentRunner = (
       threadProviderKind === settings.kind
         ? (threadRow.externalThreadId ?? threadRow.codexThreadId ?? null)
         : null
+    const onApprovalRequest = buildOnApprovalRequest(threadId, taskId)
     const thread = externalId
       ? provider.resumeThread(externalId, {
           workingDirectory: threadRow.worktreePath,
           skipGitRepoCheck: false,
           sandboxMode: 'workspace-write',
           approvalPolicy: 'never',
-          additionalDirectories
+          additionalDirectories,
+          onApprovalRequest
         })
       : provider.startThread({
           workingDirectory: threadRow.worktreePath,
           skipGitRepoCheck: false,
           sandboxMode: 'workspace-write',
           approvalPolicy: 'never',
-          additionalDirectories
+          additionalDirectories,
+          onApprovalRequest
         })
 
     void (async () => {
@@ -595,7 +655,78 @@ export const createAgentRunner = (
     })()
   }
 
+  const recoverUnresolvedApprovals = () => {
+    // Any in-memory resolver is gone on restart. For every thread whose
+    // event log has an approval_requested without a matching resolved, write
+    // a synthetic rejection so the transcript is coherent and flip the
+    // owning task to idle.
+    const approvalRequests = database
+      .select()
+      .from(schema.threadEvents)
+      .where(eq(schema.threadEvents.type, 'item.approval_requested'))
+      .all()
+
+    const resolvedEvents = database
+      .select()
+      .from(schema.threadEvents)
+      .where(eq(schema.threadEvents.type, 'item.approval_resolved'))
+      .all()
+
+    const resolvedIds = new Set<string>()
+
+    for (const event of resolvedEvents) {
+      try {
+        const payload = JSON.parse(event.payload) as {
+          item?: { id?: string }
+        }
+
+        if (payload.item?.id) resolvedIds.add(payload.item.id)
+      } catch {
+        // malformed row — skip
+      }
+    }
+
+    for (const event of approvalRequests) {
+      try {
+        const payload = JSON.parse(event.payload) as {
+          item?: { id?: string }
+        }
+        const requestId = payload.item?.id
+
+        if (!requestId || resolvedIds.has(requestId)) continue
+
+        appendEvent(event.threadId, 'item.approval_resolved', {
+          type: 'item.approval_resolved',
+          item: {
+            id: requestId,
+            decision: 'reject',
+            reason: 'app restarted',
+            resolvedAt: clock().toISOString()
+          }
+        })
+
+        const threadRow = database
+          .select()
+          .from(schema.threads)
+          .where(eq(schema.threads.id, event.threadId))
+          .get()
+
+        if (threadRow?.taskId) {
+          database
+            .update(schema.tasks)
+            .set({ agentState: 'idle', updatedAt: clock() })
+            .where(eq(schema.tasks.id, threadRow.taskId))
+            .run()
+        }
+      } catch {
+        // malformed row — skip
+      }
+    }
+  }
+
   const recoverOrphanedThreads = () => {
+    recoverUnresolvedApprovals()
+
     const orphans = database
       .select()
       .from(schema.threads)
@@ -764,7 +895,8 @@ export const createAgentRunner = (
       workingDirectory: project.directoryPath,
       skipGitRepoCheck: false,
       sandboxMode: 'workspace-write',
-      approvalPolicy: 'never'
+      approvalPolicy: 'never',
+      onApprovalRequest: buildOnApprovalRequest(threadId, null)
     })
 
     void (async () => {
@@ -788,6 +920,7 @@ export const createAgentRunner = (
     startProjectThread,
     continueThread,
     recoverOrphanedThreads,
-    mergeTask
+    mergeTask,
+    respondToApproval
   }
 }
