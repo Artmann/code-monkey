@@ -1,6 +1,5 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import invariant from 'tiny-invariant'
 import { describe, expect, test, vi } from 'vitest'
 
 import type { Thread } from '../hooks/use-thread'
@@ -128,7 +127,7 @@ describe('AgentPane', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('boom')
   })
 
-  test('pending approval replaces the composer with an approve/reject bar', async () => {
+  test('pending approval exposes approve/reject inline while keeping the composer', async () => {
     const onApprovalDecision = vi.fn()
     const user = userEvent.setup()
 
@@ -160,21 +159,12 @@ describe('AgentPane', () => {
       />
     )
 
+    // The composer stays put so the user can still nudge the agent.
     expect(
-      screen.queryByPlaceholderText(/type a follow-up/i)
-    ).not.toBeInTheDocument()
+      screen.getByPlaceholderText(/type a follow-up/i)
+    ).toBeInTheDocument()
 
-    // Both the inline transcript card and the sticky bottom bar expose
-    // approve/reject buttons while a request is pending. Either is valid.
-    const approveButtons = screen.getAllByRole('button', {
-      name: /^approve$/i
-    })
-
-    const firstApprove = approveButtons[0]
-
-    invariant(firstApprove, 'no approve button rendered')
-
-    await user.click(firstApprove)
+    await user.click(screen.getByRole('button', { name: /^approve$/i }))
 
     expect(onApprovalDecision).toHaveBeenCalledWith('req-1', {
       decision: 'approve'

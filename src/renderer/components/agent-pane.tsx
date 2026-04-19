@@ -3,18 +3,13 @@ import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { Task } from '../hooks/use-tasks'
-import {
-  derivePendingApproval,
-  type Thread,
-  type ThreadEvent
-} from '../hooks/use-thread'
+import type { Thread, ThreadEvent } from '../hooks/use-thread'
 import { cn } from '../lib/utils'
 import {
   AgentTranscript,
   ApprovalActionsProvider,
   type ApprovalDecisionShape
 } from './agent-transcript'
-import { ApprovalCard } from './approval-card'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 
@@ -153,7 +148,6 @@ export function AgentPane({
   emptyState,
   allowSendWithoutThread = false
 }: AgentPaneProps) {
-  const pendingApproval = derivePendingApproval(events)
   if (isStartingNewChat) {
     return (
       <div className='flex h-full min-h-0 flex-1 flex-col overflow-hidden'>
@@ -245,21 +239,10 @@ export function AgentPane({
       )}
 
       <div className='mt-3 shrink-0'>
-        {pendingApproval ? (
-          <ApprovalCard
-            state='pending'
-            tool={pendingApproval.tool}
-            summary={pendingApproval.summary}
-            onDecide={(decision) =>
-              onApprovalDecision?.(pendingApproval.id, decision)
-            }
-          />
-        ) : (
-          <Composer
-            disabled={composerDisabled}
-            onSend={onSendMessage}
-          />
-        )}
+        <Composer
+          disabled={composerDisabled}
+          onSend={onSendMessage}
+        />
       </div>
     </div>
   )
