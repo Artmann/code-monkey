@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type {
   ClaudeCodeApiProviderSettings,
   ClaudeCodeCliProviderSettings
@@ -8,7 +10,8 @@ import type {
   AgentThreadOptions,
   FullAgentProvider,
   NormalizedEvent,
-  OneOffAgentInput
+  OneOffAgentInput,
+  OnApprovalRequest
 } from '../provider'
 import {
   normalizeClaudeCodeStream,
@@ -25,6 +28,16 @@ type QueryPermissionMode =
   | 'bypassPermissions'
   | 'plan'
 
+type CanUseToolResponse =
+  | { behavior: 'allow'; updatedInput?: Record<string, unknown> }
+  | { behavior: 'deny'; message: string }
+
+type CanUseTool = (
+  toolName: string,
+  input: Record<string, unknown>,
+  context: unknown
+) => Promise<CanUseToolResponse>
+
 type QueryOptions = {
   cwd?: string
   model?: string
@@ -33,6 +46,7 @@ type QueryOptions = {
   pathToClaudeCodeExecutable?: string
   env?: Record<string, string>
   abortController?: AbortController
+  canUseTool?: CanUseTool
 }
 
 type QueryInput = {
@@ -54,14 +68,6 @@ const defaultLoader: ClaudeCodeSdkLoader = async () => {
   return { query: mod.query }
 }
 
-const mapPermissionMode = (
-  approvalPolicy?: AgentThreadOptions['approvalPolicy']
-): QueryPermissionMode => {
-  if (approvalPolicy === 'never') return 'acceptEdits'
-
-  return 'default'
-}
-
 const buildEnv = (
   settings: ClaudeCodeProviderSettings
 ): Record<string, string> | undefined => {
@@ -80,6 +86,137 @@ const buildExecutablePath = (
   }
 
   return undefined
+}
+
+const summarizeInput = (tool: string, input: unknown): string => {
+  if (
+    tool === 'Bash' &&
+    typeof input === 'object' &&
+    input !== null &&
+    'command' in input
+  ) {
+    const command = (input as { command: unknown }).command
+
+    if (typeof command === 'string') return command.slice(0, 200)
+  }
+
+  if (
+    (tool === 'Edit' || tool === 'Write' || tool === 'MultiEdit') &&
+    typeof input === 'object' &&
+    input !== null &&
+    'file_path' in input
+  ) {
+    const path = (input as { file_path: unknown }).file_path
+
+    if (typeof path === 'string') return `${tool} ${path}`
+  }
+
+  return tool
+}
+
+// A minimal async channel: values pushed via `push`, consumed by the async
+// iterable returned from `stream()`. Closing the channel ends the stream.
+type Channel<T> = {
+  push: (value: T) => void
+  close: () => void
+  stream: () => AsyncIterable<T>
+}
+
+const createChannel = <T>(): Channel<T> => {
+  const queue: T[] = []
+  const waiters: Array<(value: IteratorResult<T>) => void> = []
+  let closed = false
+
+  const push = (value: T) => {
+    if (closed) return
+
+    const waiter = waiters.shift()
+
+    if (waiter) {
+      waiter({ value, done: false })
+    } else {
+      queue.push(value)
+    }
+  }
+
+  const close = () => {
+    closed = true
+
+    while (waiters.length > 0) {
+      const waiter = waiters.shift()
+
+      waiter?.({ value: undefined as unknown as T, done: true })
+    }
+  }
+
+  const stream = (): AsyncIterable<T> => ({
+    [Symbol.asyncIterator]: () => ({
+      next: () =>
+        new Promise<IteratorResult<T>>((resolve) => {
+          if (queue.length > 0) {
+            const value = queue.shift() as T
+
+            resolve({ value, done: false })
+
+            return
+          }
+
+          if (closed) {
+            resolve({ value: undefined as unknown as T, done: true })
+
+            return
+          }
+
+          waiters.push(resolve)
+        })
+    })
+  })
+
+  return { push, close, stream }
+}
+
+const buildCanUseTool = (
+  onApprovalRequest: OnApprovalRequest,
+  channel: Channel<NormalizedEvent>
+): CanUseTool => {
+  return async (toolName, input) => {
+    const request = {
+      id: randomUUID(),
+      tool: toolName,
+      input,
+      summary: summarizeInput(toolName, input)
+    }
+    const requestedAt = new Date().toISOString()
+
+    channel.push({
+      type: 'item.approval_requested',
+      item: { ...request, requestedAt }
+    } as NormalizedEvent)
+
+    const decision = await onApprovalRequest(request)
+
+    const resolvedAt = new Date().toISOString()
+
+    channel.push({
+      type: 'item.approval_resolved',
+      item: {
+        id: request.id,
+        decision: decision.decision,
+        reason:
+          decision.decision === 'reject' ? decision.reason : undefined,
+        resolvedAt
+      }
+    } as NormalizedEvent)
+
+    if (decision.decision === 'approve') {
+      return { behavior: 'allow' }
+    }
+
+    return {
+      behavior: 'deny',
+      message: decision.reason ?? 'Rejected by user.'
+    }
+  }
 }
 
 const captureSessionId = (
@@ -129,7 +266,9 @@ export const createClaudeCodeProvider = async (
     ...(threadOptions?.workingDirectory != null
       ? { cwd: threadOptions.workingDirectory }
       : {}),
-    permissionMode: mapPermissionMode(threadOptions?.approvalPolicy),
+    // Approvals now flow through `canUseTool`; stay in the SDK default mode
+    // so it routes tool calls to us instead of auto-accepting.
+    permissionMode: 'default',
     ...(pathToClaudeCodeExecutable
       ? { pathToClaudeCodeExecutable }
       : {}),
@@ -147,32 +286,59 @@ export const createClaudeCodeProvider = async (
         return currentSessionId
       },
       runStreamed: async (input: string) => {
+        const eventChannel = createChannel<NormalizedEvent>()
+        const onApprovalRequest = threadOptions?.onApprovalRequest
+
         const options: QueryOptions = {
           ...baseOptions(threadOptions),
-          ...(currentSessionId ? { resume: currentSessionId } : {})
+          ...(currentSessionId ? { resume: currentSessionId } : {}),
+          ...(onApprovalRequest
+            ? {
+                canUseTool: buildCanUseTool(
+                  onApprovalRequest,
+                  eventChannel
+                )
+              }
+            : {})
         }
 
         const raw = query({ prompt: input, options })
-        const { events, getSessionId } = captureSessionId(raw)
+        const { events: sdkEvents, getSessionId } = captureSessionId(raw)
 
         const generator = normalizeClaudeCodeStream(
-          events,
+          sdkEvents,
           currentSessionId
         )
 
-        const normalized: AsyncIterable<NormalizedEvent> = {
-          [Symbol.asyncIterator]: async function* () {
+        // Single-channel merge: approval events are pushed from canUseTool
+        // while the SDK stream is blocked awaiting a decision. We drain the
+        // SDK in the background into the same channel so consumers see both
+        // in the order they arrive.
+        const drainPromise = (async () => {
+          try {
             for await (const event of generator) {
-              yield event
+              eventChannel.push(event)
             }
-
+          } finally {
             const captured = getSessionId()
 
             if (captured != null) currentSessionId = captured
+
+            eventChannel.close()
+          }
+        })()
+
+        const merged: AsyncIterable<NormalizedEvent> = {
+          [Symbol.asyncIterator]: async function* () {
+            for await (const event of eventChannel.stream()) {
+              yield event
+            }
+
+            await drainPromise
           }
         }
 
-        return { events: normalized }
+        return { events: merged }
       }
     }
   }
