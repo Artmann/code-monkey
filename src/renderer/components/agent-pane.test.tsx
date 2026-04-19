@@ -127,6 +127,55 @@ describe('AgentPane', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('boom')
   })
 
+  test('pending approval replaces the composer with an approve/reject bar', async () => {
+    const onApprovalDecision = vi.fn()
+    const user = userEvent.setup()
+
+    renderWithProviders(
+      <AgentPane
+        task={buildTask({ status: 'in_progress' })}
+        thread={buildThread({ status: 'running' })}
+        events={[
+          {
+            id: 'e1',
+            threadId: 'thread-1',
+            sequence: 1,
+            type: 'item.approval_requested',
+            createdAt: new Date().toISOString(),
+            payload: {
+              item: {
+                id: 'req-1',
+                tool: 'Bash',
+                input: { command: 'git commit' },
+                summary: 'git commit'
+              }
+            }
+          }
+        ]}
+        providerConfigured={true}
+        onSendMessage={() => undefined}
+        onApprovalDecision={onApprovalDecision}
+        isSending={false}
+      />
+    )
+
+    expect(
+      screen.queryByPlaceholderText(/type a follow-up/i)
+    ).not.toBeInTheDocument()
+
+    // Both the inline transcript card and the sticky bottom bar expose
+    // approve/reject buttons while a request is pending. Either is valid.
+    const approveButtons = screen.getAllByRole('button', {
+      name: /^approve$/i
+    })
+
+    await user.click(approveButtons[0]!)
+
+    expect(onApprovalDecision).toHaveBeenCalledWith('req-1', {
+      decision: 'approve'
+    })
+  })
+
   test('surfaces the merge error as an alert when provided', () => {
     renderWithProviders(
       <AgentPane

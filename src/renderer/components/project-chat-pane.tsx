@@ -11,8 +11,10 @@ import {
   useThreadStream,
   type Thread
 } from '../hooks/use-thread'
+import { apiFetch } from '../lib/api-client'
 import { cn } from '../lib/utils'
 import { AgentPane } from './agent-pane'
+import type { ApprovalDecisionShape } from './agent-transcript'
 import { StatePill } from './state-pill'
 import { Button } from './ui/button'
 import {
@@ -100,6 +102,18 @@ export function ProjectChatPane({
         }
       }
     )
+  }
+
+  function onApprovalDecision(
+    requestId: string,
+    decision: ApprovalDecisionShape
+  ) {
+    if (!threadId) return
+
+    void apiFetch(`/threads/${threadId}/approvals/${requestId}`, {
+      method: 'POST',
+      body: JSON.stringify(decision)
+    })
   }
 
   function onNewThread() {
@@ -213,6 +227,7 @@ export function ProjectChatPane({
           events={events}
           providerConfigured={providerConfigured}
           onSendMessage={onSend}
+          onApprovalDecision={onApprovalDecision}
           isSending={sendMessage.isPending || startProjectThread.isPending}
           allowSendWithoutThread={isNew}
           emptyState={null}

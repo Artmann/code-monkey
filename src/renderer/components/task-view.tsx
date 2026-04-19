@@ -18,7 +18,9 @@ import {
   useThreadQuery,
   useThreadStream
 } from '../hooks/use-thread'
+import { apiFetch } from '../lib/api-client'
 import { getStatusMeta, statusOrder } from '../lib/task-status'
+import type { ApprovalDecisionShape } from './agent-transcript'
 import { cn } from '../lib/utils'
 import { AgentHeaderControls } from './agent-header-controls'
 import { AgentPane } from './agent-pane'
@@ -195,6 +197,7 @@ export function TaskView({ task, onClose }: TaskViewProps) {
               events={agent.events}
               providerConfigured={agent.providerConfigured}
               onSendMessage={agent.onSendMessage}
+              onApprovalDecision={agent.onApprovalDecision}
               isSending={agent.isSending}
               isStartingNewChat={agent.isRestarting}
               mergeError={agent.mergeError}
@@ -252,6 +255,20 @@ function useAgentTaskState(
     onSendMessage: (text: string) => {
       if (!threadId) return
       sendMessage.mutate({ threadId, text })
+    },
+    onApprovalDecision: (
+      requestId: string,
+      decision: ApprovalDecisionShape
+    ) => {
+      if (!threadId) return
+
+      void apiFetch(
+        `/threads/${threadId}/approvals/${requestId}`,
+        {
+          method: 'POST',
+          body: JSON.stringify(decision)
+        }
+      )
     },
     onMerge: () => {
       mergeTask.mutate(task.id)
