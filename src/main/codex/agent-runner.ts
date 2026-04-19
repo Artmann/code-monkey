@@ -220,7 +220,9 @@ export const createAgentRunner = (
         .where(eq(schema.threads.id, threadId))
         .run()
 
-      setTaskAgentState(taskId, 'done')
+      // The agent has finished a turn; it's now awaiting the next user input.
+      // Use 'waiting_for_input' so the UI shows "Needs you" instead of "Done".
+      setTaskAgentState(taskId, 'waiting_for_input')
 
       return
     }

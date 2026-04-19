@@ -72,7 +72,7 @@ describe('AgentPane', () => {
     ).toBeInTheDocument()
   })
 
-  test('disables the composer while the thread is running', () => {
+  test('keeps the composer enabled while the thread is running so follow-ups can be queued', () => {
     renderWithProviders(
       <AgentPane
         task={buildTask({ status: 'in_progress' })}
@@ -86,7 +86,7 @@ describe('AgentPane', () => {
 
     expect(
       screen.getByPlaceholderText(/type a follow-up/i)
-    ).toBeDisabled()
+    ).not.toBeDisabled()
   })
 
   test('sends a follow-up through the composer when the thread is idle', async () => {

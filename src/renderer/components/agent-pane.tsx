@@ -183,9 +183,10 @@ export function AgentPane({
     )
   }
 
-  const threadBusy =
-    thread?.status === 'running' || thread?.status === 'starting'
-  const composerDisabled = threadBusy || isSending || !providerConfigured
+  // Always allow the user to send messages, even while the thread is running.
+  // The agent forwards queued input into its current turn, so we don't gate
+  // the composer on thread status — only on send-in-flight and provider setup.
+  const composerDisabled = isSending || !providerConfigured
 
   return (
     <div className='flex h-full min-h-0 flex-1 flex-col overflow-hidden'>

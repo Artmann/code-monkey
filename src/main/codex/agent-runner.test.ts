@@ -543,7 +543,7 @@ describe('createAgentRunner', () => {
       expect(received.map((event) => event.type)).toContain('item.completed')
     })
 
-    test('on turn.completed flips thread to idle and task agentState to done', async () => {
+    test('on turn.completed flips thread to idle and task agentState to waiting_for_input', async () => {
       const harness = createHarness()
       const { task } = seedProjectAndTask(harness.database)
 
@@ -563,7 +563,7 @@ describe('createAgentRunner', () => {
 
       const updatedTask = getTaskRow(harness.database, task.id)
 
-      expect(updatedTask?.agentState).toEqual('done')
+      expect(updatedTask?.agentState).toEqual('waiting_for_input')
       expect(updatedTask?.status).toEqual('in_progress')
     })
 
