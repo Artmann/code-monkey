@@ -10,13 +10,29 @@ import {
   Terminal,
   User
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import type { Thread, ThreadEvent } from '../hooks/use-thread'
 import { cn } from '../lib/utils'
 import { AgentMessageCard } from './agent-message-card'
+import { ApprovalCard } from './approval-card'
+
+export type ApprovalDecisionShape =
+  | { decision: 'approve' }
+  | { decision: 'reject'; reason?: string }
+
+type ApprovalActionsHandler = (
+  requestId: string,
+  decision: ApprovalDecisionShape
+) => void
+
+const ApprovalActionsContext = createContext<ApprovalActionsHandler | null>(
+  null
+)
+
+export const ApprovalActionsProvider = ApprovalActionsContext.Provider
 
 type AgentMessageItem = {
   id?: string
@@ -123,6 +139,14 @@ type RenderNode =
   | { kind: 'error'; id: string; message: string }
   | { kind: 'merge'; id: string; baseBranch?: string; branchName?: string }
   | { kind: 'turn-complete'; id: string }
+  | {
+      kind: 'approval'
+      id: string
+      requestId: string
+      tool: string
+      summary: string
+      resolved: null | { decision: 'approve' | 'reject'; reason?: string }
+    }
 
 function stepForItem(
   item: KnownItem,
@@ -262,6 +286,52 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
     }
 
     if (event.type === 'thread.started') {
+      continue
+    }
+
+    if (event.type === 'item.approval_requested') {
+      flushActivity(activity)
+      activity = null
+
+      const item = (event.payload as {
+        item?: {
+          id?: string
+          tool?: string
+          input?: unknown
+          summary?: string
+        }
+      } | null)?.item
+
+      if (!item?.id) continue
+
+      nodes.push({
+        kind: 'approval',
+        id: event.id,
+        requestId: item.id,
+        tool: item.tool ?? 'unknown',
+        summary: item.summary ?? '',
+        resolved: null
+      })
+      continue
+    }
+
+    if (event.type === 'item.approval_resolved') {
+      const item = (event.payload as {
+        item?: { id?: string; decision?: string; reason?: string }
+      } | null)?.item
+
+      if (!item?.id) continue
+
+      const target = nodes.find(
+        (node) => node.kind === 'approval' && node.requestId === item.id
+      )
+
+      if (target && target.kind === 'approval') {
+        target.resolved = {
+          decision: item.decision === 'approve' ? 'approve' : 'reject',
+          reason: item.reason
+        }
+      }
       continue
     }
 
@@ -454,8 +524,38 @@ function RenderedNode({ node }: { node: RenderNode }) {
       </SystemRow>
     )
   if (node.kind === 'turn-complete') return null
+  if (node.kind === 'approval') return <ApprovalNode node={node} />
 
   return null
+}
+
+function ApprovalNode({
+  node
+}: {
+  node: Extract<RenderNode, { kind: 'approval' }>
+}) {
+  const onDecide = useContext(ApprovalActionsContext)
+
+  if (node.resolved) {
+    return (
+      <ApprovalCard
+        state='resolved'
+        tool={node.tool}
+        summary={node.summary}
+        decision={node.resolved.decision}
+        reason={node.resolved.reason}
+      />
+    )
+  }
+
+  return (
+    <ApprovalCard
+      state='pending'
+      tool={node.tool}
+      summary={node.summary}
+      onDecide={(decision) => onDecide?.(node.requestId, decision)}
+    />
+  )
 }
 
 function UserMessageCard({
