@@ -60,9 +60,58 @@ const SUBSCRIBED_EVENT_TYPES = [
   'item.started',
   'item.updated',
   'item.completed',
+  'item.approval_requested',
+  'item.approval_resolved',
   'user_message',
   'error'
 ] as const
+
+export type PendingApproval = {
+  id: string
+  tool: string
+  input: unknown
+  summary: string
+}
+
+export const derivePendingApproval = (
+  events: ThreadEvent[]
+): PendingApproval | null => {
+  const resolvedIds = new Set<string>()
+
+  for (const event of events) {
+    if (event.type !== 'item.approval_resolved') continue
+
+    const item = (event.payload as { item?: { id?: string } } | null)?.item
+
+    if (item?.id) resolvedIds.add(item.id)
+  }
+
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+
+    if (event?.type !== 'item.approval_requested') continue
+
+    const item = (event.payload as {
+      item?: {
+        id?: string
+        tool?: string
+        input?: unknown
+        summary?: string
+      }
+    } | null)?.item
+
+    if (!item?.id || resolvedIds.has(item.id)) continue
+
+    return {
+      id: item.id,
+      tool: item.tool ?? 'unknown',
+      input: item.input ?? null,
+      summary: item.summary ?? ''
+    }
+  }
+
+  return null
+}
 
 export function useTaskThreadsQuery(taskId: string | null | undefined) {
   return useQuery({
