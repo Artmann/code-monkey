@@ -267,6 +267,8 @@ export function useStartProjectThreadMutation() {
 }
 
 export function useSendMessageMutation() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: async ({
       threadId,
@@ -279,6 +281,31 @@ export function useSendMessageMutation() {
         method: 'POST',
         body: JSON.stringify({ text })
       })
+    },
+    // The server flips thread.status to 'running' when it picks the message up,
+    // but doesn't broadcast that change — only the user_message event streams
+    // back. Without this optimistic update the transcript's "Working…" row and
+    // the header StatePill stay stale until the agent emits its first item.
+    onMutate: async ({ threadId }) => {
+      await queryClient.cancelQueries({ queryKey: threadKey(threadId) })
+
+      const previous = queryClient.getQueryData<ThreadResponse | null>(
+        threadKey(threadId)
+      )
+
+      if (previous?.thread) {
+        queryClient.setQueryData<ThreadResponse | null>(threadKey(threadId), {
+          ...previous,
+          thread: { ...previous.thread, status: 'running', errorMessage: null }
+        })
+      }
+
+      return { previous }
+    },
+    onError: (_error, { threadId }, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(threadKey(threadId), context.previous)
+      }
     }
   })
 }
