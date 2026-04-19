@@ -13,6 +13,22 @@ import {
 } from '../../codex/codex-client'
 import { runOneOffAgent } from '../../codex/one-off-agent'
 
+// Codex SDK (as of this version) does not expose a per-tool-call approval
+// callback nor emit approval-request events in its stream. `onApprovalRequest`
+// is accepted for API parity with the Claude Code provider but is not invoked
+// — Codex relies on its own `approvalPolicy` + sandbox settings. If a future
+// SDK version surfaces per-call approval events, wire them here.
+const stripUnsupportedOptions = (options?: AgentThreadOptions) => {
+  if (!options) return undefined
+
+  const {
+    onApprovalRequest: _onApprovalRequest,
+    ...supported
+  } = options
+
+  return supported
+}
+
 export const createCodexProvider = async (
   settings: CodexProviderSettings,
   loadSdk?: CodexSdkLoader
@@ -36,9 +52,11 @@ export const createCodexProvider = async (
 
   const agentProvider: AgentProvider = {
     startThread: (options?: AgentThreadOptions) =>
-      wrapThread(codex.startThread(options)),
+      wrapThread(codex.startThread(stripUnsupportedOptions(options))),
     resumeThread: (externalId: string, options?: AgentThreadOptions) =>
-      wrapThread(codex.resumeThread(externalId, options))
+      wrapThread(
+        codex.resumeThread(externalId, stripUnsupportedOptions(options))
+      )
   }
 
   // The Codex SDK's ThreadOptions accepts the additionalDirectories field

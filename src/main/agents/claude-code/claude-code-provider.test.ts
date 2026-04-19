@@ -39,7 +39,7 @@ describe('claude-code provider approval wiring', () => {
   test('passes canUseTool that emits approval_requested and resolves on approve', async () => {
     const captured: CapturedOptions[] = []
     const provider = await createClaudeCodeProvider(
-      { mode: 'cli' },
+      { kind: 'claude-code', mode: 'cli', executablePath: null },
       makeFakeSdk(captured)
     )
 
@@ -98,7 +98,7 @@ describe('claude-code provider approval wiring', () => {
   test('reject translates to SDK deny with the reason as message', async () => {
     const captured: CapturedOptions[] = []
     const provider = await createClaudeCodeProvider(
-      { mode: 'cli' },
+      { kind: 'claude-code', mode: 'cli', executablePath: null },
       makeFakeSdk(captured)
     )
 
@@ -133,7 +133,7 @@ describe('claude-code provider approval wiring', () => {
   test('omits canUseTool when no onApprovalRequest is provided', async () => {
     const captured: CapturedOptions[] = []
     const provider = await createClaudeCodeProvider(
-      { mode: 'cli' },
+      { kind: 'claude-code', mode: 'cli', executablePath: null },
       makeFakeSdk(captured)
     )
 
