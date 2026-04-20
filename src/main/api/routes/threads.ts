@@ -5,7 +5,11 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 
-import type { AgentRunner, PersistedEvent } from '../../codex/agent-runner'
+import type {
+  AgentRunner,
+  PersistedEvent,
+  TaskStateEvent
+} from '../../codex/agent-runner'
 import type { EventBroker } from '../../codex/event-broker'
 import * as schema from '../../database/schema'
 
@@ -24,6 +28,7 @@ const approvalSchema = z.discriminatedUnion('decision', [
 export type ThreadsRoutesDependencies = {
   database: BetterSQLite3Database<typeof schema>
   broker: EventBroker<PersistedEvent>
+  taskStateBroker?: EventBroker<TaskStateEvent>
   runner: AgentRunner
 }
 
@@ -38,7 +43,7 @@ const parsePayload = (raw: string): unknown => {
 export const createThreadsRoutes = (
   dependencies: ThreadsRoutesDependencies
 ) => {
-  const { database, broker, runner } = dependencies
+  const { database, broker, taskStateBroker, runner } = dependencies
 
   const routes = new Hono()
 
@@ -227,6 +232,36 @@ export const createThreadsRoutes = (
       return context.json({ ok: true }, 202)
     }
   )
+
+  routes.get('/projects/:projectId/stream', (context) => {
+    const projectId = context.req.param('projectId')
+
+    return streamSSE(context, async (stream) => {
+      if (!taskStateBroker) {
+        await new Promise<void>(() => {})
+        return
+      }
+
+      let resolveClosed: (() => void) | null = null
+      const closed = new Promise<void>((resolve) => {
+        resolveClosed = resolve
+      })
+
+      const unsubscribe = taskStateBroker.subscribe(projectId, (event) => {
+        void stream.writeSSE({
+          event: 'task.state_changed',
+          data: JSON.stringify(event)
+        })
+      })
+
+      stream.onAbort(() => {
+        unsubscribe()
+        resolveClosed?.()
+      })
+
+      await closed
+    })
+  })
 
   routes.get('/threads/:threadId/stream', (context) => {
     const threadId = context.req.param('threadId')

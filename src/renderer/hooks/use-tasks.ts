@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch } from '../lib/api-client'
+import { useEffect } from 'react'
+import { apiFetch, getApiBaseUrl } from '../lib/api-client'
 import { taskThreadsKey } from './use-thread'
 
 export const taskStatusValues = ['in_progress', 'todo', 'done'] as const
@@ -58,6 +59,55 @@ export interface UpdateTaskInput {
 
 function tasksKey(projectId: string) {
   return ['tasks', projectId] as const
+}
+
+export type TaskStateEvent = {
+  taskId: string
+  projectId: string
+  agentState: AgentState
+}
+
+export function useProjectTaskStream(projectId: string | null | undefined) {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!projectId) return
+
+    const source = new EventSource(
+      `${getApiBaseUrl()}/projects/${projectId}/stream`
+    )
+
+    const handle = (rawData: string) => {
+      try {
+        const event = JSON.parse(rawData) as TaskStateEvent
+
+        queryClient.setQueryData<Task[]>(tasksKey(projectId), (previous) => {
+          if (!previous) return previous
+
+          return previous.map((task) =>
+            task.id === event.taskId
+              ? { ...task, agentState: event.agentState }
+              : task
+          )
+        })
+      } catch {
+        // ignore malformed payload
+      }
+    }
+
+    source.addEventListener('task.state_changed', (messageEvent) => {
+      handle((messageEvent as MessageEvent).data)
+    })
+
+    source.onerror = () => {
+      source.close()
+      void queryClient.invalidateQueries({ queryKey: tasksKey(projectId) })
+    }
+
+    return () => {
+      source.close()
+    }
+  }, [projectId, queryClient])
 }
 
 export function useTasksQuery(projectId: string | undefined) {

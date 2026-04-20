@@ -7,7 +7,11 @@ import {
   useSearchParams
 } from 'react-router-dom'
 import type { Project } from '../hooks/use-projects'
-import { useTasksQuery, type TaskStatus } from '../hooks/use-tasks'
+import {
+  useProjectTaskStream,
+  useTasksQuery,
+  type TaskStatus
+} from '../hooks/use-tasks'
 import { cn } from '../lib/utils'
 import { NewTaskDialog } from './new-task-dialog'
 import { ProjectAgentView } from './project-agent-view'
@@ -25,6 +29,8 @@ type ActiveTab = 'tasks' | 'agent'
 export function ProjectView({ project }: ProjectViewProps) {
   const tasksQuery = useTasksQuery(project?.id)
   const tasks = tasksQuery.data ?? []
+
+  useProjectTaskStream(project?.id)
 
   const location = useLocation()
   const navigate = useNavigate()

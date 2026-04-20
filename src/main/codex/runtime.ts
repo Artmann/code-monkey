@@ -6,7 +6,8 @@ import * as schema from '../database/schema'
 import {
   createAgentRunner,
   type AgentRunner,
-  type PersistedEvent
+  type PersistedEvent,
+  type TaskStateEvent
 } from './agent-runner'
 import { generateMergeCommitMessage } from './commit-message'
 import {
@@ -32,6 +33,7 @@ export type CodexRuntimeDependencies = {
 
 export type CodexRuntime = {
   broker: EventBroker<PersistedEvent>
+  taskStateBroker: EventBroker<TaskStateEvent>
   runner: AgentRunner
 }
 
@@ -41,6 +43,7 @@ export const createCodexRuntime = (
   const { database, safeStorage } = dependencies
 
   const broker = createEventBroker<PersistedEvent>()
+  const taskStateBroker = createEventBroker<TaskStateEvent>()
   const git = createNodeGitExecutor()
   const fs = createNodeFsDependencies()
   const worktreesRoot = getWorktreesDirectory()
@@ -69,6 +72,7 @@ export const createCodexRuntime = (
   const runner = createAgentRunner({
     database,
     broker,
+    taskStateBroker,
     providerSettings: () => getProviderSettings({ database, safeStorage }),
     createProvider,
     worktree: {
@@ -87,5 +91,5 @@ export const createCodexRuntime = (
     }
   })
 
-  return { broker, runner }
+  return { broker, taskStateBroker, runner }
 }

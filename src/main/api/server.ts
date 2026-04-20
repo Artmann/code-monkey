@@ -8,7 +8,8 @@ import { secureHeaders } from 'hono/secure-headers'
 
 import type {
   AgentRunner,
-  PersistedEvent
+  PersistedEvent,
+  TaskStateEvent
 } from '../codex/agent-runner'
 import type { EventBroker } from '../codex/event-broker'
 import type { SafeStorageLike } from '../codex/provider-settings'
@@ -22,6 +23,7 @@ export type ApiServerDependencies = {
   database: BetterSQLite3Database<typeof schema>
   safeStorage: SafeStorageLike
   broker: EventBroker<PersistedEvent>
+  taskStateBroker: EventBroker<TaskStateEvent>
   runner: AgentRunner
 }
 

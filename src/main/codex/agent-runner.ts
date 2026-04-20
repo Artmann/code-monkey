@@ -30,6 +30,14 @@ export type PersistedEvent = {
   type: string
 }
 
+export type AgentState = 'idle' | 'waiting_for_input' | 'working' | 'done'
+
+export type TaskStateEvent = {
+  taskId: string
+  projectId: string
+  agentState: AgentState
+}
+
 export type AgentRunnerDatabase = BetterSQLite3Database<typeof schema>
 
 export type AgentRunnerWorktreeInput = {
@@ -48,6 +56,7 @@ export type ResolveProjectHeadResult = { branchName: string | null }
 export type AgentRunnerDependencies = {
   database: AgentRunnerDatabase
   broker: EventBroker<PersistedEvent>
+  taskStateBroker?: EventBroker<TaskStateEvent>
   createProvider: (settings: ProviderSettings) => Promise<AgentProvider>
   providerSettings: () => ProviderSettings | null
   worktree: {
@@ -145,6 +154,7 @@ export const createAgentRunner = (
   const {
     database,
     broker,
+    taskStateBroker,
     createProvider,
     providerSettings,
     worktree,
@@ -155,9 +165,30 @@ export const createAgentRunner = (
 
   const clock = now ?? (() => new Date())
 
+  const publishTaskState = (
+    taskId: string | null,
+    agentState: AgentState
+  ) => {
+    if (!taskId || !taskStateBroker) return
+
+    const row = database
+      .select({ projectId: schema.tasks.projectId })
+      .from(schema.tasks)
+      .where(eq(schema.tasks.id, taskId))
+      .get()
+
+    if (!row) return
+
+    taskStateBroker.publish(row.projectId, {
+      taskId,
+      projectId: row.projectId,
+      agentState
+    })
+  }
+
   const setTaskAgentState = (
     taskId: string | null,
-    agentState: 'idle' | 'waiting_for_input' | 'working' | 'done'
+    agentState: AgentState
   ) => {
     if (!taskId) return
 
@@ -166,6 +197,8 @@ export const createAgentRunner = (
       .set({ agentState, updatedAt: clock() })
       .where(eq(schema.tasks.id, taskId))
       .run()
+
+    publishTaskState(taskId, agentState)
   }
 
   type PendingApproval = {
@@ -395,6 +428,8 @@ export const createAgentRunner = (
       return threadRow.id
     })
 
+    publishTaskState(task.id, 'working')
+
     const prompt = buildInitialPrompt(task)
     appendEvent(threadId, 'user_message', { text: prompt })
 
@@ -483,6 +518,8 @@ export const createAgentRunner = (
           )
         )
         .run()
+
+      publishTaskState(task.id, 'idle')
     }
 
     if (!previousThread.worktreePath) {
@@ -532,6 +569,8 @@ export const createAgentRunner = (
 
       return threadRow.id
     })
+
+    publishTaskState(task.id, 'working')
 
     const prompt = buildInitialPrompt(task)
     appendEvent(threadId, 'user_message', { text: prompt })
@@ -717,6 +756,8 @@ export const createAgentRunner = (
             .set({ agentState: 'idle', updatedAt: clock() })
             .where(eq(schema.tasks.id, threadRow.taskId))
             .run()
+
+          publishTaskState(threadRow.taskId, 'idle')
         }
       } catch {
         // malformed row — skip
@@ -757,6 +798,8 @@ export const createAgentRunner = (
             )
           )
           .run()
+
+        publishTaskState(thread.taskId, 'idle')
       }
     }
   }
@@ -825,6 +868,8 @@ export const createAgentRunner = (
       .set({ status: 'done', agentState: 'idle', updatedAt: clock() })
       .where(eq(schema.tasks.id, task.id))
       .run()
+
+    publishTaskState(task.id, 'idle')
 
     return result
   }

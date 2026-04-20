@@ -55,6 +55,7 @@ async function bootstrap(): Promise<void> {
     database,
     safeStorage,
     broker: runtime.broker,
+    taskStateBroker: runtime.taskStateBroker,
     runner: runtime.runner
   })
   console.log(`[code-monkey] API listening on http://127.0.0.1:${apiPort}`)
