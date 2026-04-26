@@ -198,6 +198,7 @@ export function TaskView({ task, onClose }: TaskViewProps) {
               providerConfigured={agent.providerConfigured}
               onSendMessage={agent.onSendMessage}
               onApprovalDecision={agent.onApprovalDecision}
+              onUserInputDecision={agent.onUserInputDecision}
               isSending={agent.isSending}
               isStartingNewChat={agent.isRestarting}
               mergeError={agent.mergeError}
@@ -267,6 +268,20 @@ function useAgentTaskState(
         {
           method: 'POST',
           body: JSON.stringify(decision)
+        }
+      )
+    },
+    onUserInputDecision: (
+      requestId: string,
+      answers: Record<string, string>
+    ) => {
+      if (!threadId) return
+
+      void apiFetch(
+        `/threads/${threadId}/user-inputs/${requestId}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ answers })
         }
       )
     },

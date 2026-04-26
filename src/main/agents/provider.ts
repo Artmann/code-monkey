@@ -1,10 +1,28 @@
 export type ProviderKind = 'codex' | 'claude-code'
 
+// Mirrors t3code's runtimeMode. Drives the Claude SDK permissionMode and
+// whether code-monkey routes tool calls through `onApprovalRequest`.
+//   full-access      — bypass all prompts (SDK runs every tool unattended)
+//   approval-required — every non-allowlisted tool waits for the user
+//   auto-accept-edits — file writes auto-allowed; other tools still prompt
+export type RuntimeMode =
+  | 'approval-required'
+  | 'auto-accept-edits'
+  | 'full-access'
+
+export type RequestKind =
+  | 'command'
+  | 'file_read'
+  | 'file_write'
+  | 'network'
+  | 'other'
+
 export type ApprovalRequest = {
   id: string
-  tool: string
   input: unknown
+  kind: RequestKind
   summary: string
+  tool: string
 }
 
 export type ApprovalDecision =
@@ -14,6 +32,35 @@ export type ApprovalDecision =
 export type OnApprovalRequest = (
   request: ApprovalRequest
 ) => Promise<ApprovalDecision>
+
+// Question shape mirrors the SDK AskUserQuestion tool input. We pass it
+// through so the UI can render a real question form instead of a generic
+// approval card.
+export type UserInputOption = {
+  description: string
+  label: string
+  preview?: string
+}
+
+export type UserInputQuestion = {
+  header: string
+  multiSelect: boolean
+  options: UserInputOption[]
+  question: string
+}
+
+export type UserInputRequest = {
+  id: string
+  questions: UserInputQuestion[]
+}
+
+// Answers keyed by question text — same shape the AskUserQuestion tool
+// expects to receive back as `answers`.
+export type UserInputAnswers = Record<string, string>
+
+export type OnUserInputRequest = (
+  request: UserInputRequest
+) => Promise<UserInputAnswers>
 
 export type AgentThreadOptions = {
   workingDirectory?: string
@@ -25,6 +72,8 @@ export type AgentThreadOptions = {
   // worktree cwd — so `git add`/`commit` would otherwise be sandbox-blocked.
   additionalDirectories?: string[]
   onApprovalRequest?: OnApprovalRequest
+  onUserInputRequest?: OnUserInputRequest
+  runtimeMode?: RuntimeMode
 }
 
 export type NormalizedEventType =

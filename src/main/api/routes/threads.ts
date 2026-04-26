@@ -25,6 +25,10 @@ const approvalSchema = z.discriminatedUnion('decision', [
   })
 ])
 
+const userInputSchema = z.object({
+  answers: z.record(z.string(), z.string())
+})
+
 export type ThreadsRoutesDependencies = {
   database: BetterSQLite3Database<typeof schema>
   broker: EventBroker<PersistedEvent>
@@ -226,6 +230,37 @@ export const createThreadsRoutes = (
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
+        // Stale or unmatched approvals come back as a runner error. 409
+        // distinguishes them from actual server failures so the UI can
+        // re-fetch the thread state instead of retrying.
+        if (message.startsWith('No pending approval matches')) {
+          return context.json({ error: message }, 409)
+        }
+
+        return context.json({ error: message }, 500)
+      }
+
+      return context.json({ ok: true }, 202)
+    }
+  )
+
+  routes.post(
+    '/threads/:threadId/user-inputs/:requestId',
+    zValidator('json', userInputSchema),
+    async (context) => {
+      const threadId = context.req.param('threadId')
+      const requestId = context.req.param('requestId')
+      const body = context.req.valid('json')
+
+      try {
+        await runner.respondToUserInput(threadId, requestId, body.answers)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+
+        if (message.startsWith('No pending user-input matches')) {
+          return context.json({ error: message }, 409)
+        }
+
         return context.json({ error: message }, 500)
       }
 
@@ -238,7 +273,7 @@ export const createThreadsRoutes = (
 
     return streamSSE(context, async (stream) => {
       if (!taskStateBroker) {
-        await new Promise<void>(() => {})
+        await new Promise<void>(() => undefined)
         return
       }
 

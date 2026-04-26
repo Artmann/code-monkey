@@ -122,6 +122,12 @@ type ApprovalCall = {
     | { decision: 'reject'; reason?: string }
 }
 
+type UserInputCall = {
+  threadId: string
+  requestId: string
+  answers: Record<string, string>
+}
+
 type FakeRunnerState = {
   startCalls: string[]
   restartCalls: string[]
@@ -129,6 +135,7 @@ type FakeRunnerState = {
   continueCalls: Array<{ threadId: string; text: string }>
   mergeCalls: string[]
   approvalCalls: ApprovalCall[]
+  userInputCalls: UserInputCall[]
   threadId: string | null
   restartThreadId: string | null
   projectThreadId: string | null
@@ -191,6 +198,9 @@ const createFakeRunner = (
   },
   respondToApproval: async (threadId, requestId, decision) => {
     state.approvalCalls.push({ threadId, requestId, decision })
+  },
+  respondToUserInput: async (threadId, requestId, answers) => {
+    state.userInputCalls.push({ threadId, requestId, answers })
   }
 })
 
@@ -210,6 +220,7 @@ describe('threads routes', () => {
       continueCalls: [],
       mergeCalls: [],
       approvalCalls: [],
+      userInputCalls: [],
       threadId: null,
       restartThreadId: null,
       projectThreadId: null,

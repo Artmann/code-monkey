@@ -10,6 +10,7 @@ import invariant from 'tiny-invariant'
 import type {
   AgentProvider,
   AgentThread,
+  AgentThreadOptions,
   NormalizedEvent
 } from '../agents/provider'
 import * as schema from '../database/schema'
@@ -95,21 +96,7 @@ const createEventChannel = () => {
   }
 }
 
-type FakeThreadOptions = {
-  workingDirectory?: string
-  skipGitRepoCheck?: boolean
-  sandboxMode?: string
-  approvalPolicy?: string
-  onApprovalRequest?: (request: {
-    id: string
-    tool: string
-    input: unknown
-    summary: string
-  }) => Promise<
-    | { decision: 'approve' }
-    | { decision: 'reject'; reason?: string }
-  >
-}
+type FakeThreadOptions = AgentThreadOptions
 
 type FakeThread = {
   readonly handle: AgentThread
@@ -917,6 +904,7 @@ describe('createAgentRunner', () => {
           id: 'req-1',
           tool: 'Bash',
           input: { command: 'git commit' },
+          kind: 'command',
           summary: 'git commit'
         })
 
@@ -933,7 +921,7 @@ describe('createAgentRunner', () => {
       expect(decision).toEqual({ decision: 'approve' })
     })
 
-    test('no-ops when the request id does not match', async () => {
+    test('throws and leaves the pending promise unresolved when the request id does not match', async () => {
       const harness = createHarness()
       const { task } = seedProjectAndTask(harness.database)
 
@@ -953,15 +941,18 @@ describe('createAgentRunner', () => {
           id: 'req-1',
           tool: 'Bash',
           input: {},
+          kind: 'command',
           summary: 'x'
         })
         .then(() => {
           resolved = true
         })
 
-      await harness.runner.respondToApproval(threadId, 'wrong-id', {
-        decision: 'approve'
-      })
+      await expect(
+        harness.runner.respondToApproval(threadId, 'wrong-id', {
+          decision: 'approve'
+        })
+      ).rejects.toThrow(/No pending approval matches/)
 
       // Give the promise a turn to resolve if it were going to.
       await new Promise((resolve) => setTimeout(resolve, 20))

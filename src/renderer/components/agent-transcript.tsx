@@ -18,6 +18,7 @@ import type { Thread, ThreadEvent } from '../hooks/use-thread'
 import { cn } from '../lib/utils'
 import { AgentMessageCard } from './agent-message-card'
 import { ApprovalCard } from './approval-card'
+import { UserInputCard, type UserInputQuestion } from './user-input-card'
 
 export type ApprovalDecisionShape =
   | { decision: 'approve' }
@@ -28,11 +29,21 @@ type ApprovalActionsHandler = (
   decision: ApprovalDecisionShape
 ) => void
 
+type UserInputActionsHandler = (
+  requestId: string,
+  answers: Record<string, string>
+) => void
+
 const ApprovalActionsContext = createContext<ApprovalActionsHandler | null>(
   null
 )
 
+const UserInputActionsContext = createContext<UserInputActionsHandler | null>(
+  null
+)
+
 export const ApprovalActionsProvider = ApprovalActionsContext.Provider
+export const UserInputActionsProvider = UserInputActionsContext.Provider
 
 type AgentMessageItem = {
   id?: string
@@ -146,6 +157,20 @@ type RenderNode =
       tool: string
       summary: string
       resolved: null | { decision: 'approve' | 'reject'; reason?: string }
+    }
+  | {
+      kind: 'user-input'
+      id: string
+      requestId: string
+      questions: UserInputQuestion[]
+      resolved:
+        | null
+        | { answers: Record<string, string>; error?: string }
+    }
+  | {
+      kind: 'plan-proposed'
+      id: string
+      plan: string
     }
 
 function stepForItem(
@@ -332,6 +357,71 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
           reason: item.reason
         }
       }
+      continue
+    }
+
+    if (event.type === 'item.user_input_requested') {
+      flushActivity(activity)
+      activity = null
+
+      const item = (event.payload as {
+        item?: {
+          id?: string
+          questions?: UserInputQuestion[]
+        }
+      } | null)?.item
+
+      if (!item?.id) continue
+
+      nodes.push({
+        kind: 'user-input',
+        id: event.id,
+        requestId: item.id,
+        questions: Array.isArray(item.questions) ? item.questions : [],
+        resolved: null
+      })
+      continue
+    }
+
+    if (event.type === 'item.user_input_resolved') {
+      const item = (event.payload as {
+        item?: {
+          id?: string
+          answers?: Record<string, string>
+          error?: string
+        }
+      } | null)?.item
+
+      if (!item?.id) continue
+
+      const target = nodes.find(
+        (node) => node.kind === 'user-input' && node.requestId === item.id
+      )
+
+      if (target && target.kind === 'user-input') {
+        target.resolved = {
+          answers: item.answers ?? {},
+          error: item.error
+        }
+      }
+      continue
+    }
+
+    if (event.type === 'item.plan_proposed') {
+      flushActivity(activity)
+      activity = null
+
+      const item = (event.payload as {
+        item?: { id?: string; plan?: string }
+      } | null)?.item
+
+      const plan = typeof item?.plan === 'string' ? item.plan : ''
+
+      nodes.push({
+        kind: 'plan-proposed',
+        id: event.id,
+        plan
+      })
       continue
     }
 
@@ -525,8 +615,45 @@ function RenderedNode({ node }: { node: RenderNode }) {
     )
   if (node.kind === 'turn-complete') return null
   if (node.kind === 'approval') return <ApprovalNode node={node} />
+  if (node.kind === 'user-input') return <UserInputNode node={node} />
+  if (node.kind === 'plan-proposed') return <PlanProposedRow plan={node.plan} />
 
   return null
+}
+
+function UserInputNode({
+  node
+}: {
+  node: Extract<RenderNode, { kind: 'user-input' }>
+}) {
+  const onAnswer = useContext(UserInputActionsContext)
+
+  return (
+    <UserInputCard
+      questions={node.questions}
+      resolved={node.resolved}
+      onSubmit={(answers) => onAnswer?.(node.requestId, answers)}
+    />
+  )
+}
+
+function PlanProposedRow({ plan }: { plan: string }) {
+  return (
+    <div className='flex flex-col gap-2 rounded-xl border border-banana/40 bg-banana/5 px-4 py-3'>
+      <div className='font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana'>
+        Plan proposed
+      </div>
+      {plan.trim() === '' ? (
+        <div className='font-mono text-[11.5px] text-muted-foreground'>
+          (empty plan)
+        </div>
+      ) : (
+        <div className='prose prose-sm max-w-none whitespace-pre-wrap break-words font-mono text-[12.5px]'>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{plan}</ReactMarkdown>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ApprovalNode({

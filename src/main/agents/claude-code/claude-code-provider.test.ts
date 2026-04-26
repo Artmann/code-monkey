@@ -11,6 +11,7 @@ type CapturedOptions = {
     | { behavior: 'allow'; updatedInput?: Record<string, unknown> }
     | { behavior: 'deny'; message: string }
   >
+  permissionMode?: string
 }
 
 type QueryInput = {
@@ -143,4 +144,196 @@ describe('claude-code provider approval wiring', () => {
 
     expect(captured[0]?.canUseTool).toBeUndefined()
   })
+})
+
+describe('claude-code provider runtimeMode → permissionMode', () => {
+  test.each([
+    ['approval-required', 'default'],
+    ['auto-accept-edits', 'acceptEdits'],
+    ['full-access', 'bypassPermissions']
+  ] as const)('%s maps to %s', async (runtimeMode, expectedPermissionMode) => {
+    const captured: CapturedOptions[] = []
+    const provider = await createClaudeCodeProvider(
+      { kind: 'claude-code', mode: 'cli', executablePath: null },
+      makeFakeSdk(captured)
+    )
+
+    const thread = provider.startThread({
+      workingDirectory: '/tmp',
+      runtimeMode
+    })
+
+    await thread.runStreamed('hi')
+
+    expect(captured[0]?.permissionMode).toEqual(expectedPermissionMode)
+  })
+
+  test('defaults to permissionMode=default when runtimeMode is unset', async () => {
+    const captured: CapturedOptions[] = []
+    const provider = await createClaudeCodeProvider(
+      { kind: 'claude-code', mode: 'cli', executablePath: null },
+      makeFakeSdk(captured)
+    )
+
+    const thread = provider.startThread({ workingDirectory: '/tmp' })
+
+    await thread.runStreamed('hi')
+
+    expect(captured[0]?.permissionMode).toEqual('default')
+  })
+})
+
+describe('claude-code provider special tools', () => {
+  test('ExitPlanMode is denied without consulting onApprovalRequest, emits plan_proposed', async () => {
+    const captured: CapturedOptions[] = []
+    const provider = await createClaudeCodeProvider(
+      { kind: 'claude-code', mode: 'cli', executablePath: null },
+      makeFakeSdk(captured)
+    )
+
+    const onApprovalRequest = vi.fn(async () => ({
+      decision: 'approve' as const
+    }))
+
+    const thread = provider.startThread({
+      workingDirectory: '/tmp',
+      onApprovalRequest
+    })
+
+    const { events } = await thread.runStreamed('hi')
+    const iterator = events[Symbol.asyncIterator]()
+
+    const canUse = captured[0]?.canUseTool
+
+    const decisionPromise = canUse?.(
+      'ExitPlanMode',
+      { plan: '## Step 1\n- do thing' },
+      {}
+    )
+
+    const first = await iterator.next()
+
+    expect(first.done).toEqual(false)
+    expect(first.value).toMatchObject({
+      type: 'item.plan_proposed',
+      item: expect.objectContaining({
+        plan: '## Step 1\n- do thing'
+      })
+    })
+
+    const decision = await decisionPromise
+
+    expect(decision).toMatchObject({ behavior: 'deny' })
+    expect(onApprovalRequest).not.toHaveBeenCalled()
+  })
+
+  test('AskUserQuestion routes through onUserInputRequest and returns answers as updatedInput', async () => {
+    const captured: CapturedOptions[] = []
+    const provider = await createClaudeCodeProvider(
+      { kind: 'claude-code', mode: 'cli', executablePath: null },
+      makeFakeSdk(captured)
+    )
+
+    const onUserInputRequest = vi.fn(async () => ({
+      'Pick a color?': 'blue'
+    }))
+
+    const thread = provider.startThread({
+      workingDirectory: '/tmp',
+      onUserInputRequest
+    })
+
+    const { events } = await thread.runStreamed('hi')
+    const iterator = events[Symbol.asyncIterator]()
+
+    const canUse = captured[0]?.canUseTool
+
+    const decisionPromise = canUse?.(
+      'AskUserQuestion',
+      {
+        questions: [
+          {
+            question: 'Pick a color?',
+            header: 'Color',
+            multiSelect: false,
+            options: [
+              { label: 'red', description: 'a red color' },
+              { label: 'blue', description: 'a blue color' }
+            ]
+          }
+        ]
+      },
+      {}
+    )
+
+    const first = await iterator.next()
+
+    expect(first.value).toMatchObject({
+      type: 'item.user_input_requested',
+      item: expect.objectContaining({
+        questions: expect.arrayContaining([
+          expect.objectContaining({ question: 'Pick a color?' })
+        ])
+      })
+    })
+
+    const second = await iterator.next()
+
+    expect(second.value).toMatchObject({
+      type: 'item.user_input_resolved',
+      item: expect.objectContaining({
+        answers: { 'Pick a color?': 'blue' }
+      })
+    })
+
+    const decision = await decisionPromise
+
+    expect(decision).toEqual({
+      behavior: 'allow',
+      updatedInput: { answers: { 'Pick a color?': 'blue' } }
+    })
+    expect(onUserInputRequest).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('claude-code provider request classification', () => {
+  test.each([
+    ['Bash', { command: 'ls' }, 'command'],
+    ['Edit', { file_path: '/tmp/x.ts' }, 'file_write'],
+    ['Read', { file_path: '/tmp/x.ts' }, 'file_read'],
+    ['WebFetch', { url: 'https://example.com' }, 'network'],
+    ['WeirdUnknownTool', {}, 'other']
+  ])(
+    'classifies %s as %s',
+    async (tool, input, expectedKind) => {
+      const captured: CapturedOptions[] = []
+      const provider = await createClaudeCodeProvider(
+        { kind: 'claude-code', mode: 'cli', executablePath: null },
+        makeFakeSdk(captured)
+      )
+
+      const onApprovalRequest = vi.fn(async () => ({
+        decision: 'approve' as const
+      }))
+
+      const thread = provider.startThread({
+        workingDirectory: '/tmp',
+        onApprovalRequest
+      })
+
+      const { events } = await thread.runStreamed('hi')
+      const iterator = events[Symbol.asyncIterator]()
+
+      const canUse = captured[0]?.canUseTool
+
+      void canUse?.(tool, input, {})
+
+      const first = await iterator.next()
+
+      expect(first.value).toMatchObject({
+        type: 'item.approval_requested',
+        item: expect.objectContaining({ kind: expectedKind })
+      })
+    }
+  )
 })

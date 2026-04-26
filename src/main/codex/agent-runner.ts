@@ -9,7 +9,11 @@ import type {
   ApprovalDecision,
   ApprovalRequest,
   NormalizedEvent,
-  OnApprovalRequest
+  OnApprovalRequest,
+  OnUserInputRequest,
+  RuntimeMode,
+  UserInputAnswers,
+  UserInputRequest
 } from '../agents/provider'
 import * as schema from '../database/schema'
 import type { EventBroker } from './event-broker'
@@ -87,7 +91,16 @@ export type AgentRunner = {
     requestId: string,
     decision: ApprovalDecision
   ) => Promise<void>
+  respondToUserInput: (
+    threadId: string,
+    requestId: string,
+    answers: UserInputAnswers
+  ) => Promise<void>
 }
+
+// Default runtime mode for new threads. Mirrors t3code's safe default and
+// keeps every tool call routed through the canUseTool approval path.
+const defaultRuntimeMode: RuntimeMode = 'approval-required'
 
 const interruptionMessage = 'Interrupted by app exit'
 
@@ -206,7 +219,14 @@ export const createAgentRunner = (
     resolve: (decision: ApprovalDecision) => void
   }
 
+  type PendingUserInput = {
+    requestId: string
+    resolve: (answers: UserInputAnswers) => void
+    reject: (error: Error) => void
+  }
+
   const pendingApprovals = new Map<string, PendingApproval>()
+  const pendingUserInputs = new Map<string, PendingUserInput>()
 
   const buildOnApprovalRequest = (
     threadId: string,
@@ -224,11 +244,48 @@ export const createAgentRunner = (
             decision: 'reject',
             reason: 'concurrent approval not supported'
           })
+          pendingApprovals.delete(threadId)
         }
 
         pendingApprovals.set(threadId, {
           requestId: request.id,
-          resolve
+          resolve: (decision) => {
+            // Always clear the slot before resolving so a thrown handler
+            // can't strand a stale entry that blocks future approvals.
+            pendingApprovals.delete(threadId)
+            resolve(decision)
+          }
+        })
+
+        setTaskAgentState(taskId, 'waiting_for_input')
+      })
+  }
+
+  const buildOnUserInputRequest = (
+    threadId: string,
+    taskId: string | null
+  ): OnUserInputRequest => {
+    return (request: UserInputRequest) =>
+      new Promise<UserInputAnswers>((resolve, reject) => {
+        const existing = pendingUserInputs.get(threadId)
+
+        if (existing) {
+          existing.reject(
+            new Error('superseded by another user-input request')
+          )
+          pendingUserInputs.delete(threadId)
+        }
+
+        pendingUserInputs.set(threadId, {
+          requestId: request.id,
+          resolve: (answers) => {
+            pendingUserInputs.delete(threadId)
+            resolve(answers)
+          },
+          reject: (error) => {
+            pendingUserInputs.delete(threadId)
+            reject(error)
+          }
         })
 
         setTaskAgentState(taskId, 'waiting_for_input')
@@ -242,10 +299,29 @@ export const createAgentRunner = (
   ): Promise<void> => {
     const pending = pendingApprovals.get(threadId)
 
-    if (!pending || pending.requestId !== requestId) return
+    if (!pending || pending.requestId !== requestId) {
+      throw new Error(
+        `No pending approval matches threadId=${threadId} requestId=${requestId}.`
+      )
+    }
 
-    pendingApprovals.delete(threadId)
     pending.resolve(decision)
+  }
+
+  const respondToUserInput = async (
+    threadId: string,
+    requestId: string,
+    answers: UserInputAnswers
+  ): Promise<void> => {
+    const pending = pendingUserInputs.get(threadId)
+
+    if (!pending || pending.requestId !== requestId) {
+      throw new Error(
+        `No pending user-input matches threadId=${threadId} requestId=${requestId}.`
+      )
+    }
+
+    pending.resolve(answers)
   }
 
   const appendEvent = (
@@ -440,7 +516,9 @@ export const createAgentRunner = (
       sandboxMode: 'workspace-write',
       approvalPolicy: 'never',
       additionalDirectories: worktreeWritableRoots(project.directoryPath),
-      onApprovalRequest: buildOnApprovalRequest(threadId, task.id)
+      runtimeMode: defaultRuntimeMode,
+      onApprovalRequest: buildOnApprovalRequest(threadId, task.id),
+      onUserInputRequest: buildOnUserInputRequest(threadId, task.id)
     })
 
     void (async () => {
@@ -582,7 +660,9 @@ export const createAgentRunner = (
       sandboxMode: 'workspace-write',
       approvalPolicy: 'never',
       additionalDirectories: worktreeWritableRoots(project.directoryPath),
-      onApprovalRequest: buildOnApprovalRequest(threadId, task.id)
+      runtimeMode: defaultRuntimeMode,
+      onApprovalRequest: buildOnApprovalRequest(threadId, task.id),
+      onUserInputRequest: buildOnUserInputRequest(threadId, task.id)
     })
 
     void (async () => {
@@ -663,6 +743,7 @@ export const createAgentRunner = (
         ? (threadRow.externalThreadId ?? threadRow.codexThreadId ?? null)
         : null
     const onApprovalRequest = buildOnApprovalRequest(threadId, taskId)
+    const onUserInputRequest = buildOnUserInputRequest(threadId, taskId)
     const thread = externalId
       ? provider.resumeThread(externalId, {
           workingDirectory: threadRow.worktreePath,
@@ -670,7 +751,9 @@ export const createAgentRunner = (
           sandboxMode: 'workspace-write',
           approvalPolicy: 'never',
           additionalDirectories,
-          onApprovalRequest
+          runtimeMode: defaultRuntimeMode,
+          onApprovalRequest,
+          onUserInputRequest
         })
       : provider.startThread({
           workingDirectory: threadRow.worktreePath,
@@ -678,7 +761,9 @@ export const createAgentRunner = (
           sandboxMode: 'workspace-write',
           approvalPolicy: 'never',
           additionalDirectories,
-          onApprovalRequest
+          runtimeMode: defaultRuntimeMode,
+          onApprovalRequest,
+          onUserInputRequest
         })
 
     void (async () => {
@@ -694,10 +779,52 @@ export const createAgentRunner = (
     })()
   }
 
+  const collectResolvedIds = (eventType: string): Set<string> => {
+    const rows = database
+      .select()
+      .from(schema.threadEvents)
+      .where(eq(schema.threadEvents.type, eventType))
+      .all()
+
+    const ids = new Set<string>()
+
+    for (const row of rows) {
+      try {
+        const payload = JSON.parse(row.payload) as {
+          item?: { id?: string }
+        }
+
+        if (payload.item?.id) ids.add(payload.item.id)
+      } catch {
+        // malformed row — skip
+      }
+    }
+
+    return ids
+  }
+
+  const flipTaskToIdleForThread = (threadId: string) => {
+    const threadRow = database
+      .select()
+      .from(schema.threads)
+      .where(eq(schema.threads.id, threadId))
+      .get()
+
+    if (!threadRow?.taskId) return
+
+    database
+      .update(schema.tasks)
+      .set({ agentState: 'idle', updatedAt: clock() })
+      .where(eq(schema.tasks.id, threadRow.taskId))
+      .run()
+
+    publishTaskState(threadRow.taskId, 'idle')
+  }
+
   const recoverUnresolvedApprovals = () => {
     // Any in-memory resolver is gone on restart. For every thread whose
-    // event log has an approval_requested without a matching resolved, write
-    // a synthetic rejection so the transcript is coherent and flip the
+    // event log has a request without a matching resolved, write a synthetic
+    // rejection/cancellation so the transcript is coherent and flip the
     // owning task to idle.
     const approvalRequests = database
       .select()
@@ -705,25 +832,7 @@ export const createAgentRunner = (
       .where(eq(schema.threadEvents.type, 'item.approval_requested'))
       .all()
 
-    const resolvedEvents = database
-      .select()
-      .from(schema.threadEvents)
-      .where(eq(schema.threadEvents.type, 'item.approval_resolved'))
-      .all()
-
-    const resolvedIds = new Set<string>()
-
-    for (const event of resolvedEvents) {
-      try {
-        const payload = JSON.parse(event.payload) as {
-          item?: { id?: string }
-        }
-
-        if (payload.item?.id) resolvedIds.add(payload.item.id)
-      } catch {
-        // malformed row — skip
-      }
-    }
+    const resolvedApprovalIds = collectResolvedIds('item.approval_resolved')
 
     for (const event of approvalRequests) {
       try {
@@ -732,7 +841,7 @@ export const createAgentRunner = (
         }
         const requestId = payload.item?.id
 
-        if (!requestId || resolvedIds.has(requestId)) continue
+        if (!requestId || resolvedApprovalIds.has(requestId)) continue
 
         appendEvent(event.threadId, 'item.approval_resolved', {
           type: 'item.approval_resolved',
@@ -744,21 +853,42 @@ export const createAgentRunner = (
           }
         })
 
-        const threadRow = database
-          .select()
-          .from(schema.threads)
-          .where(eq(schema.threads.id, event.threadId))
-          .get()
+        flipTaskToIdleForThread(event.threadId)
+      } catch {
+        // malformed row — skip
+      }
+    }
 
-        if (threadRow?.taskId) {
-          database
-            .update(schema.tasks)
-            .set({ agentState: 'idle', updatedAt: clock() })
-            .where(eq(schema.tasks.id, threadRow.taskId))
-            .run()
+    const userInputRequests = database
+      .select()
+      .from(schema.threadEvents)
+      .where(eq(schema.threadEvents.type, 'item.user_input_requested'))
+      .all()
 
-          publishTaskState(threadRow.taskId, 'idle')
+    const resolvedUserInputIds = collectResolvedIds(
+      'item.user_input_resolved'
+    )
+
+    for (const event of userInputRequests) {
+      try {
+        const payload = JSON.parse(event.payload) as {
+          item?: { id?: string }
         }
+        const requestId = payload.item?.id
+
+        if (!requestId || resolvedUserInputIds.has(requestId)) continue
+
+        appendEvent(event.threadId, 'item.user_input_resolved', {
+          type: 'item.user_input_resolved',
+          item: {
+            id: requestId,
+            answers: {},
+            error: 'app restarted',
+            resolvedAt: clock().toISOString()
+          }
+        })
+
+        flipTaskToIdleForThread(event.threadId)
       } catch {
         // malformed row — skip
       }
@@ -941,7 +1071,9 @@ export const createAgentRunner = (
       skipGitRepoCheck: false,
       sandboxMode: 'workspace-write',
       approvalPolicy: 'never',
-      onApprovalRequest: buildOnApprovalRequest(threadId, null)
+      runtimeMode: defaultRuntimeMode,
+      onApprovalRequest: buildOnApprovalRequest(threadId, null),
+      onUserInputRequest: buildOnUserInputRequest(threadId, null)
     })
 
     void (async () => {
@@ -966,6 +1098,7 @@ export const createAgentRunner = (
     continueThread,
     recoverOrphanedThreads,
     mergeTask,
-    respondToApproval
+    respondToApproval,
+    respondToUserInput
   }
 }

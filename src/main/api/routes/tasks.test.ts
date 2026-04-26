@@ -115,7 +115,8 @@ const createFakeRunner = (
   mergeTask: async () => {
     throw new Error('not used in tasks tests')
   },
-  respondToApproval: async () => undefined
+  respondToApproval: async () => undefined,
+  respondToUserInput: async () => undefined
 })
 
 describe('tasks routes', () => {

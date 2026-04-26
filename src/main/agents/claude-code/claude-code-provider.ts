@@ -11,7 +11,13 @@ import type {
   FullAgentProvider,
   NormalizedEvent,
   OneOffAgentInput,
-  OnApprovalRequest
+  OnApprovalRequest,
+  OnUserInputRequest,
+  RequestKind,
+  RuntimeMode,
+  UserInputAnswers,
+  UserInputQuestion,
+  UserInputRequest
 } from '../provider'
 import {
   normalizeClaudeCodeStream,
@@ -88,7 +94,26 @@ const buildExecutablePath = (
   return undefined
 }
 
-const summarizeInput = (tool: string, input: unknown): string => {
+const permissionModeFor = (
+  runtimeMode: RuntimeMode | undefined
+): QueryPermissionMode => {
+  if (runtimeMode === 'full-access') {
+    return 'bypassPermissions'
+  }
+
+  if (runtimeMode === 'auto-accept-edits') {
+    return 'acceptEdits'
+  }
+
+  // 'approval-required' or unset: stay in default so the SDK routes tool
+  // calls through canUseTool instead of auto-accepting.
+  return 'default'
+}
+
+const classifyAndSummarize = (
+  tool: string,
+  input: unknown
+): { kind: RequestKind; summary: string } => {
   if (
     tool === 'Bash' &&
     typeof input === 'object' &&
@@ -97,7 +122,9 @@ const summarizeInput = (tool: string, input: unknown): string => {
   ) {
     const command = (input as { command: unknown }).command
 
-    if (typeof command === 'string') return command.slice(0, 200)
+    if (typeof command === 'string') {
+      return { kind: 'command', summary: command.slice(0, 200) }
+    }
   }
 
   if (
@@ -108,10 +135,126 @@ const summarizeInput = (tool: string, input: unknown): string => {
   ) {
     const path = (input as { file_path: unknown }).file_path
 
-    if (typeof path === 'string') return `${tool} ${path}`
+    if (typeof path === 'string') {
+      return { kind: 'file_write', summary: `${tool} ${path}` }
+    }
   }
 
-  return tool
+  if (
+    (tool === 'Read' || tool === 'Glob' || tool === 'Grep') &&
+    typeof input === 'object' &&
+    input !== null
+  ) {
+    const record = input as Record<string, unknown>
+    const target =
+      typeof record.file_path === 'string'
+        ? record.file_path
+        : typeof record.pattern === 'string'
+          ? record.pattern
+          : ''
+
+    return {
+      kind: 'file_read',
+      summary: target ? `${tool} ${target}` : tool
+    }
+  }
+
+  if (tool === 'WebFetch' || tool === 'WebSearch') {
+    if (typeof input === 'object' && input !== null) {
+      const record = input as Record<string, unknown>
+      const target =
+        typeof record.url === 'string'
+          ? record.url
+          : typeof record.query === 'string'
+            ? record.query
+            : ''
+
+      return {
+        kind: 'network',
+        summary: target ? `${tool} ${target}` : tool
+      }
+    }
+  }
+
+  return { kind: 'other', summary: tool }
+}
+
+const extractQuestions = (input: unknown): UserInputQuestion[] => {
+  if (typeof input !== 'object' || input === null) {
+    return []
+  }
+
+  const record = input as Record<string, unknown>
+
+  if (!Array.isArray(record.questions)) {
+    return []
+  }
+
+  const questions: UserInputQuestion[] = []
+
+  for (const candidate of record.questions) {
+    if (typeof candidate !== 'object' || candidate === null) {
+      continue
+    }
+
+    const entry = candidate as Record<string, unknown>
+
+    if (
+      typeof entry.question !== 'string' ||
+      typeof entry.header !== 'string' ||
+      !Array.isArray(entry.options)
+    ) {
+      continue
+    }
+
+    const options = entry.options.flatMap((option) => {
+      if (typeof option !== 'object' || option === null) {
+        return []
+      }
+
+      const optionEntry = option as Record<string, unknown>
+
+      if (
+        typeof optionEntry.label !== 'string' ||
+        typeof optionEntry.description !== 'string'
+      ) {
+        return []
+      }
+
+      return [
+        {
+          description: optionEntry.description,
+          label: optionEntry.label,
+          ...(typeof optionEntry.preview === 'string'
+            ? { preview: optionEntry.preview }
+            : {})
+        }
+      ]
+    })
+
+    questions.push({
+      header: entry.header,
+      multiSelect: entry.multiSelect === true,
+      options,
+      question: entry.question
+    })
+  }
+
+  return questions
+}
+
+const extractPlan = (input: unknown): string => {
+  if (typeof input !== 'object' || input === null) {
+    return ''
+  }
+
+  const record = input as Record<string, unknown>
+
+  if (typeof record.plan === 'string') {
+    return record.plan
+  }
+
+  return ''
 }
 
 // A minimal async channel: values pushed via `push`, consumed by the async
@@ -175,16 +318,99 @@ const createChannel = <T>(): Channel<T> => {
   return { push, close, stream }
 }
 
-const buildCanUseTool = (
-  onApprovalRequest: OnApprovalRequest,
+type CanUseToolDependencies = {
   channel: Channel<NormalizedEvent>
-): CanUseTool => {
+  onApprovalRequest?: OnApprovalRequest
+  onUserInputRequest?: OnUserInputRequest
+}
+
+const buildCanUseTool = ({
+  channel,
+  onApprovalRequest,
+  onUserInputRequest
+}: CanUseToolDependencies): CanUseTool => {
   return async (toolName, input) => {
+    // ExitPlanMode: never allow the SDK to execute it. Capture the proposed
+    // plan as an event the UI can render, then deny so the SDK leaves plan
+    // mode cleanly.
+    if (toolName === 'ExitPlanMode') {
+      const plan = extractPlan(input)
+
+      channel.push({
+        type: 'item.plan_proposed',
+        item: {
+          id: randomUUID(),
+          plan,
+          proposedAt: new Date().toISOString()
+        }
+      } as NormalizedEvent)
+
+      return { behavior: 'deny', message: 'Plan captured; awaiting user.' }
+    }
+
+    // AskUserQuestion: route through onUserInputRequest if available so the
+    // UI shows a real question form. Returns the answers as updatedInput so
+    // the SDK proceeds with the user's responses.
+    if (toolName === 'AskUserQuestion' && onUserInputRequest) {
+      const request: UserInputRequest = {
+        id: randomUUID(),
+        questions: extractQuestions(input)
+      }
+
+      const requestedAt = new Date().toISOString()
+
+      channel.push({
+        type: 'item.user_input_requested',
+        item: { ...request, requestedAt }
+      } as NormalizedEvent)
+
+      let answers: UserInputAnswers
+
+      try {
+        answers = await onUserInputRequest(request)
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error)
+
+        channel.push({
+          type: 'item.user_input_resolved',
+          item: {
+            id: request.id,
+            answers: {},
+            error: message,
+            resolvedAt: new Date().toISOString()
+          }
+        } as NormalizedEvent)
+
+        return { behavior: 'deny', message }
+      }
+
+      channel.push({
+        type: 'item.user_input_resolved',
+        item: {
+          id: request.id,
+          answers,
+          resolvedAt: new Date().toISOString()
+        }
+      } as NormalizedEvent)
+
+      return { behavior: 'allow', updatedInput: { answers } }
+    }
+
+    if (!onApprovalRequest) {
+      // No approval handler configured — fall back to allow so the SDK can
+      // still proceed when the host opted into a permissive mode but didn't
+      // wire up an approval channel.
+      return { behavior: 'allow' }
+    }
+
+    const { kind, summary } = classifyAndSummarize(toolName, input)
     const request = {
       id: randomUUID(),
       tool: toolName,
       input,
-      summary: summarizeInput(toolName, input)
+      kind,
+      summary
     }
     const requestedAt = new Date().toISOString()
 
@@ -193,7 +419,25 @@ const buildCanUseTool = (
       item: { ...request, requestedAt }
     } as NormalizedEvent)
 
-    const decision = await onApprovalRequest(request)
+    let decision
+
+    try {
+      decision = await onApprovalRequest(request)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      channel.push({
+        type: 'item.approval_resolved',
+        item: {
+          id: request.id,
+          decision: 'reject',
+          reason: message,
+          resolvedAt: new Date().toISOString()
+        }
+      } as NormalizedEvent)
+
+      return { behavior: 'deny', message }
+    }
 
     const resolvedAt = new Date().toISOString()
 
@@ -266,9 +510,7 @@ export const createClaudeCodeProvider = async (
     ...(threadOptions?.workingDirectory != null
       ? { cwd: threadOptions.workingDirectory }
       : {}),
-    // Approvals now flow through `canUseTool`; stay in the SDK default mode
-    // so it routes tool calls to us instead of auto-accepting.
-    permissionMode: 'default',
+    permissionMode: permissionModeFor(threadOptions?.runtimeMode),
     ...(pathToClaudeCodeExecutable
       ? { pathToClaudeCodeExecutable }
       : {}),
@@ -288,16 +530,24 @@ export const createClaudeCodeProvider = async (
       runStreamed: async (input: string) => {
         const eventChannel = createChannel<NormalizedEvent>()
         const onApprovalRequest = threadOptions?.onApprovalRequest
+        const onUserInputRequest = threadOptions?.onUserInputRequest
+
+        // Register canUseTool whenever a host callback is wired. The runtime
+        // mode still governs permissionMode independently — a full-access
+        // mode + no callbacks means the SDK runs unattended.
+        const shouldRegisterCanUseTool =
+          onApprovalRequest != null || onUserInputRequest != null
 
         const options: QueryOptions = {
           ...baseOptions(threadOptions),
           ...(currentSessionId ? { resume: currentSessionId } : {}),
-          ...(onApprovalRequest
+          ...(shouldRegisterCanUseTool
             ? {
-                canUseTool: buildCanUseTool(
+                canUseTool: buildCanUseTool({
+                  channel: eventChannel,
                   onApprovalRequest,
-                  eventChannel
-                )
+                  onUserInputRequest
+                })
               }
             : {})
         }

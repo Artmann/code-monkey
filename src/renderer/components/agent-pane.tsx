@@ -8,6 +8,7 @@ import { cn } from '../lib/utils'
 import {
   AgentTranscript,
   ApprovalActionsProvider,
+  UserInputActionsProvider,
   type ApprovalDecisionShape
 } from './agent-transcript'
 import { Button } from './ui/button'
@@ -22,6 +23,10 @@ export type AgentPaneProps = {
   onApprovalDecision?: (
     requestId: string,
     decision: ApprovalDecisionShape
+  ) => void
+  onUserInputDecision?: (
+    requestId: string,
+    answers: Record<string, string>
   ) => void
   isSending: boolean
   isStartingNewChat?: boolean
@@ -142,6 +147,7 @@ export function AgentPane({
   providerConfigured,
   onSendMessage,
   onApprovalDecision,
+  onUserInputDecision,
   isSending,
   isStartingNewChat = false,
   mergeError = null,
@@ -210,10 +216,12 @@ export function AgentPane({
 
       <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
         <ApprovalActionsProvider value={onApprovalDecision ?? null}>
-          <AgentTranscript
-            events={events}
-            thread={thread}
-          />
+          <UserInputActionsProvider value={onUserInputDecision ?? null}>
+            <AgentTranscript
+              events={events}
+              thread={thread}
+            />
+          </UserInputActionsProvider>
         </ApprovalActionsProvider>
       </div>
 

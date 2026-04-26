@@ -116,6 +116,18 @@ export function ProjectChatPane({
     })
   }
 
+  function onUserInputDecision(
+    requestId: string,
+    answers: Record<string, string>
+  ) {
+    if (!threadId) return
+
+    void apiFetch(`/threads/${threadId}/user-inputs/${requestId}`, {
+      method: 'POST',
+      body: JSON.stringify({ answers })
+    })
+  }
+
   function onNewThread() {
     navigate({
       pathname: `/projects/${project.id}/agent`,
@@ -228,6 +240,7 @@ export function ProjectChatPane({
           providerConfigured={providerConfigured}
           onSendMessage={onSend}
           onApprovalDecision={onApprovalDecision}
+          onUserInputDecision={onUserInputDecision}
           isSending={sendMessage.isPending || startProjectThread.isPending}
           allowSendWithoutThread={isNew}
           emptyState={null}
