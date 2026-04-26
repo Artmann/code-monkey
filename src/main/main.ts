@@ -10,6 +10,17 @@ import { registerDialogHandlers } from './ipc/dialog'
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
 
+// Opt-in debug session: set CODE_MONKEY_DEBUG=1 (use `pnpm start:debug`) to
+// expose Chrome DevTools Protocol on :9222 for tools like agent-browser, and
+// open DevTools alongside the renderer. Switches must be appended before
+// app.whenReady() — top-level is the safe place.
+const isDebugSession = process.env.CODE_MONKEY_DEBUG === '1'
+
+if (isDebugSession) {
+  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+  app.commandLine.appendSwitch('remote-allow-origins', '*')
+}
+
 if (started) {
   app.quit()
 }
@@ -33,6 +44,10 @@ async function createMainWindow(): Promise<void> {
 
   mainWindow.maximize()
   mainWindow.show()
+
+  if (isDebugSession) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
+  }
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     await mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)

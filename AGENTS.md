@@ -83,6 +83,36 @@ return json(data)
   recent thread events as JSON. Requires better-sqlite3 to be built for the
   Node ABI (re-run after a Node version change).
 
+## Browser automation (agent-browser)
+
+Drive the running Electron app via Chrome DevTools Protocol — useful for
+dogfooding the UI, exploratory QA, and snapshot-driven assertions without
+spinning up Playwright.
+
+One-time install (global, per machine):
+
+```bash
+npm install -g agent-browser
+agent-browser install
+```
+
+Launch the app with CDP enabled on port 9222 (DevTools opens detached):
+
+```bash
+pnpm start:debug
+```
+
+Plain `pnpm start` does **not** expose CDP — debug mode is opt-in via the
+`CODE_MONKEY_DEBUG=1` env var that `start:debug` sets.
+
+Connect from a separate terminal:
+
+```bash
+agent-browser --cdp 9222 snapshot          # accessibility-tree dump with @eN refs
+agent-browser --cdp 9222 click @e3         # click element ref e3
+agent-browser skills get electron          # full Electron workflow doc from the CLI
+```
+
 ## Testing
 
 - Put test files next to the implementation.
