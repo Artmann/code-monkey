@@ -47,6 +47,10 @@ if (typeof window !== 'undefined') {
     window.HTMLElement.prototype.scrollIntoView = () => undefined
   }
 
+  if (!window.HTMLElement.prototype.scrollTo) {
+    window.HTMLElement.prototype.scrollTo = () => undefined
+  }
+
   // jsdom doesn't ship EventSource. Components subscribing to SSE during a
   // test only need it to construct without throwing — no events are pushed.
   if (!('EventSource' in window)) {

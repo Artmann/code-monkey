@@ -1,7 +1,8 @@
-import { Loader2, SendHorizontal } from 'lucide-react'
+import { ChevronDown, Loader2, SendHorizontal } from 'lucide-react'
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { useStickToBottom } from '../hooks/use-stick-to-bottom'
 import type { Task } from '../hooks/use-tasks'
 import type { Thread, ThreadEvent } from '../hooks/use-thread'
 import { cn } from '../lib/utils'
@@ -100,6 +101,55 @@ const Composer = ({
         </Button>
       </div>
     </form>
+  )
+}
+
+const TranscriptScrollArea = ({
+  events,
+  onApprovalDecision,
+  onUserInputDecision,
+  thread
+}: {
+  events: ThreadEvent[]
+  onApprovalDecision: AgentPaneProps['onApprovalDecision']
+  onUserInputDecision: AgentPaneProps['onUserInputDecision']
+  thread: Thread | null
+}) => {
+  const { hasNewContent, isPinned, scrollRef, scrollToBottom } =
+    useStickToBottom(events)
+
+  return (
+    <div className='relative min-h-0 flex-1'>
+      <div
+        ref={scrollRef}
+        className='absolute inset-0 overflow-y-auto pr-1'
+      >
+        <ApprovalActionsProvider value={onApprovalDecision ?? null}>
+          <UserInputActionsProvider value={onUserInputDecision ?? null}>
+            <AgentTranscript
+              events={events}
+              thread={thread}
+            />
+          </UserInputActionsProvider>
+        </ApprovalActionsProvider>
+      </div>
+
+      {!isPinned && hasNewContent && (
+        <Button
+          type='button'
+          variant='secondary'
+          size='icon'
+          onClick={() => scrollToBottom('smooth')}
+          aria-label='Scroll to latest'
+          className='absolute bottom-3 left-1/2 size-8 -translate-x-1/2 rounded-full shadow-md'
+        >
+          <ChevronDown
+            aria-hidden='true'
+            className='size-4'
+          />
+        </Button>
+      )}
+    </div>
   )
 }
 
@@ -214,16 +264,12 @@ export function AgentPane({
         </p>
       ) : null}
 
-      <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
-        <ApprovalActionsProvider value={onApprovalDecision ?? null}>
-          <UserInputActionsProvider value={onUserInputDecision ?? null}>
-            <AgentTranscript
-              events={events}
-              thread={thread}
-            />
-          </UserInputActionsProvider>
-        </ApprovalActionsProvider>
-      </div>
+      <TranscriptScrollArea
+        events={events}
+        onApprovalDecision={onApprovalDecision}
+        onUserInputDecision={onUserInputDecision}
+        thread={thread ?? null}
+      />
 
       {mergeError && (
         <p
