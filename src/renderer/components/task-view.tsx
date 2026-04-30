@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import invariant from 'tiny-invariant'
 import { useProviderSettingsQuery } from '../hooks/use-provider-settings'
 import {
   useUpdateTaskMutation,
@@ -41,13 +42,48 @@ interface TaskViewProps {
   onClose?: () => void
 }
 
+const taskViewTabs = ['agent', 'overview'] as const
+type TaskViewTab = (typeof taskViewTabs)[number]
+
+const deriveDefaultTaskViewTab = (input: {
+  hasThread: boolean
+  task: Task
+}): TaskViewTab => {
+  if (input.hasThread || input.task.agentState !== 'idle') {
+    return 'agent'
+  }
+
+  return 'overview'
+}
+
+const parseTaskViewTab = (value: string): TaskViewTab => {
+  invariant(
+    taskViewTabs.includes(value as TaskViewTab),
+    `Invalid task view tab: ${value}`
+  )
+
+  return value as TaskViewTab
+}
+
 export function TaskView({ task, onClose }: TaskViewProps) {
   const [, setSearchParams] = useSearchParams()
   const updateTask = useUpdateTaskMutation()
-  const [activeTab, setActiveTab] = useState<'overview' | 'agent'>('overview')
+  const [manualTab, setManualTab] = useState<TaskViewTab | null>(null)
+
   const agent = useAgentTaskState(task, {
-    onStarted: () => setActiveTab('agent')
+    onStarted: () => setManualTab('agent')
   })
+
+  const activeTab =
+    manualTab ??
+    deriveDefaultTaskViewTab({
+      hasThread: agent.hasThread,
+      task
+    })
+
+  function handleTabChange(value: string) {
+    setManualTab(parseTaskViewTab(value))
+  }
 
   function saveTitle(title: string) {
     const trimmed = title.trim()
@@ -159,7 +195,7 @@ export function TaskView({ task, onClose }: TaskViewProps) {
 
       <Tabs
         value={activeTab}
-        onValueChange={(value) => setActiveTab(value as 'overview' | 'agent')}
+        onValueChange={handleTabChange}
         className='flex flex-1 flex-col gap-0 overflow-hidden'
       >
         <div className='border-b px-6 py-2'>
@@ -231,12 +267,14 @@ function useAgentTaskState(
 
   const thread = threadQuery.data?.thread ?? latestThread
   const events = threadQuery.data?.events ?? []
+  const hasThread = Boolean(thread)
   const mergeError =
     mergeTask.error instanceof Error ? mergeTask.error.message : null
 
   return {
     thread,
     events,
+    hasThread,
     providerConfigured: Boolean(providerQuery.data),
     isStarting: startThread.isPending,
     isRestarting: restartThread.isPending,

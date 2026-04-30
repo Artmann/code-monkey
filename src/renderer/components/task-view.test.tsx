@@ -92,9 +92,19 @@ describe('TaskView', () => {
   })
 
   it('renders the task title and agent state', () => {
+    installNoopEventSource()
+
+    installRouteFetch({
+      'GET /settings/provider': () => ({
+        provider: { mode: 'cli', binaryPath: null }
+      }),
+      'GET /tasks/task-1/threads': () => ({ threads: [] })
+    })
+
     renderWithProviders(
       <TaskView
         task={buildTask({
+          id: 'task-1',
           title: 'Build the thing',
           agentState: 'working'
         })}
@@ -103,9 +113,12 @@ describe('TaskView', () => {
     )
 
     expect(
-      screen.getByRole('button', { name: /build the thing/i })
+      screen.getByRole('heading', { name: /build the thing/i })
     ).toBeInTheDocument()
     expect(screen.getByText(/working/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('tab', { name: /agent/i })
+    ).toHaveAttribute('data-state', 'active')
   })
 
   it('renders the description as markdown', () => {
@@ -128,6 +141,7 @@ describe('TaskView', () => {
   it('edits the title on click and saves on Enter', async () => {
     const user = userEvent.setup()
     const fetchMock = mockFetchJson({
+      '/tasks/task-1/threads': { threads: [] },
       '/tasks/task-1': {
         task: buildTask({ title: 'Updated title' })
       }
@@ -202,6 +216,71 @@ describe('TaskView', () => {
         (call) => (call[1] as RequestInit | undefined)?.method === 'PATCH'
       )
     ).toBeUndefined()
+  })
+
+  it('defaults to the Agent tab when agent work is already started', () => {
+    installNoopEventSource()
+
+    installRouteFetch({
+      'GET /settings/provider': () => ({
+        provider: { mode: 'cli', binaryPath: null }
+      }),
+      'GET /tasks/task-1/threads': () => ({ threads: [] })
+    })
+
+    renderWithProviders(
+      <TaskView
+        task={buildTask({
+          agentState: 'working',
+          id: 'task-1',
+          status: 'in_progress'
+        })}
+      />,
+      { initialEntries: ['/projects/project-1/tasks/task-1'] }
+    )
+
+    expect(
+      screen.getByRole('tab', { name: /agent/i })
+    ).toHaveAttribute('data-state', 'active')
+  })
+
+  it('defaults to the Agent tab when task has an existing thread', async () => {
+    installNoopEventSource()
+
+    const existingThread = buildThread({
+      id: 'thread-existing',
+      status: 'idle'
+    })
+
+    installRouteFetch({
+      'GET /settings/provider': () => ({
+        provider: { mode: 'cli', binaryPath: null }
+      }),
+      'GET /tasks/task-1/threads': () => ({
+        threads: [existingThread]
+      }),
+      'GET /threads/thread-existing': () => ({
+        events: [],
+        thread: existingThread
+      })
+    })
+
+    renderWithProviders(
+      <TaskView
+        task={buildTask({
+          agentState: 'idle',
+          id: 'task-1',
+          status: 'todo'
+        })}
+      />,
+      { initialEntries: ['/projects/project-1/tasks/task-1'] }
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('tab', { name: /agent/i })
+      ).toHaveAttribute('data-state', 'active')
+    })
   })
 
   it('switches to the Agent tab after Start Work succeeds', async () => {

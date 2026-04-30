@@ -199,6 +199,7 @@ export function ProjectView({ project }: ProjectViewProps) {
         {selectedTask ? (
           <div className='flex min-w-0 flex-1 basis-1/2 animate-in slide-in-from-right duration-200'>
             <TaskView
+              key={selectedTask.id}
               task={selectedTask}
               onClose={closeTaskView}
             />
