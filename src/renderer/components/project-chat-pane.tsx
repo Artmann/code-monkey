@@ -1,5 +1,5 @@
 import { ChevronDown, History, Plus } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import type { Project } from '../hooks/use-projects'
 import { useProviderSettingsQuery } from '../hooks/use-provider-settings'
@@ -65,6 +65,7 @@ export function ProjectChatPane({
 
   const startProjectThread = useStartProjectThreadMutation()
   const sendMessage = useSendMessageMutation()
+  const location = useLocation()
   const navigate = useNavigate()
 
   const thread = threadQuery.data?.thread ?? null
@@ -95,7 +96,7 @@ export function ProjectChatPane({
           navigate(
             {
               pathname: `/projects/${project.id}/agent/threads/${created.id}`,
-              search: window.location.search
+              search: location.search
             },
             { replace: false }
           )
@@ -131,14 +132,14 @@ export function ProjectChatPane({
   function onNewThread() {
     navigate({
       pathname: `/projects/${project.id}/agent`,
-      search: window.location.search
+      search: location.search
     })
   }
 
   function onSelectHistoryThread(id: string) {
     navigate({
       pathname: `/projects/${project.id}/agent/threads/${id}`,
-      search: window.location.search
+      search: location.search
     })
   }
 
