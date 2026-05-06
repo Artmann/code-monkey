@@ -9,8 +9,8 @@ describe('ApprovalCard', () => {
 
     render(
       <ApprovalCard
-        state='pending'
-        tool='Bash'
+        state="pending"
+        tool="Bash"
         summary='git commit -m "wip"'
         onDecide={onDecide}
       />
@@ -29,9 +29,9 @@ describe('ApprovalCard', () => {
 
     render(
       <ApprovalCard
-        state='pending'
-        tool='Bash'
-        summary='rm -rf /'
+        state="pending"
+        tool="Bash"
+        summary="rm -rf /"
         onDecide={onDecide}
       />
     )
@@ -53,9 +53,9 @@ describe('ApprovalCard', () => {
 
     render(
       <ApprovalCard
-        state='pending'
-        tool='Bash'
-        summary='rm -rf /'
+        state="pending"
+        tool="Bash"
+        summary="rm -rf /"
         onDecide={onDecide}
       />
     )
@@ -72,10 +72,10 @@ describe('ApprovalCard', () => {
   test('resolved approved state renders a one-liner summary', () => {
     render(
       <ApprovalCard
-        state='resolved'
-        tool='Bash'
-        summary='git commit'
-        decision='approve'
+        state="resolved"
+        tool="Bash"
+        summary="git commit"
+        decision="approve"
       />
     )
 
@@ -89,11 +89,11 @@ describe('ApprovalCard', () => {
   test('resolved rejected state shows the reason', () => {
     render(
       <ApprovalCard
-        state='resolved'
-        tool='Bash'
-        summary='git commit'
-        decision='reject'
-        reason='let me do this myself'
+        state="resolved"
+        tool="Bash"
+        summary="git commit"
+        decision="reject"
+        reason="let me do this myself"
       />
     )
 

@@ -8,10 +8,7 @@ import {
   type PersistedEvent
 } from './agent-runner'
 import { createEventBroker, type EventBroker } from './event-broker'
-import {
-  getProviderSettings,
-  type SafeStorageLike
-} from './provider-settings'
+import { getProviderSettings, type SafeStorageLike } from './provider-settings'
 
 export type CodexRuntimeDependencies = {
   database: LibSQLDatabase<typeof schema>

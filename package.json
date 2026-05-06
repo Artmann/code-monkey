@@ -17,6 +17,7 @@
     "build": "pnpm typecheck && pnpm lint && pnpm test:run && pnpm make",
     "build:npm": "node scripts/build-npm.mjs",
     "db:generate": "drizzle-kit generate",
+    "format": "prettier --write .",
     "lint": "eslint --ext .ts,.tsx src",
     "make": "electron-forge make",
     "package": "electron-forge package",

@@ -3,11 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-import {
-  mockApiBridge,
-  mockFetchJson,
-  restoreApiBridge
-} from '../test-utils'
+import { mockApiBridge, mockFetchJson, restoreApiBridge } from '../test-utils'
 import {
   threadKey,
   threadsKey,
@@ -342,11 +338,12 @@ describe('useUpdateThreadMutation', () => {
   test('PATCHes /threads/:id with the patch body', async () => {
     const thread = buildThread({ name: 'renamed' })
 
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ thread }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      })
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ thread }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
     )
 
     vi.stubGlobal('fetch', fetchMock)
@@ -384,11 +381,12 @@ describe('useCloseThreadMutation', () => {
   })
 
   test('DELETEs /threads/:id and invalidates the list', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      })
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
     )
 
     vi.stubGlobal('fetch', fetchMock)
@@ -425,11 +423,12 @@ describe('useSendMessageMutation', () => {
   })
 
   test('POSTs the message text to /threads/:id/messages', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 202,
-        headers: { 'Content-Type': 'application/json' }
-      })
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: true }), {
+          status: 202,
+          headers: { 'Content-Type': 'application/json' }
+        })
     )
 
     vi.stubGlobal('fetch', fetchMock)

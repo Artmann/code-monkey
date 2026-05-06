@@ -8,8 +8,8 @@ import {
 } from '../lib/theme'
 
 export function useTheme() {
-  const [preference, setPreferenceState] = useState<ThemePreference>(
-    () => getStoredTheme()
+  const [preference, setPreferenceState] = useState<ThemePreference>(() =>
+    getStoredTheme()
   )
 
   useEffect(() => {

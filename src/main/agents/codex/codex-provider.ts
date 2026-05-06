@@ -21,10 +21,7 @@ import { runOneOffAgent } from '../../codex/one-off-agent'
 const stripUnsupportedOptions = (options?: AgentThreadOptions) => {
   if (!options) return undefined
 
-  const {
-    onApprovalRequest: _onApprovalRequest,
-    ...supported
-  } = options
+  const { onApprovalRequest: _onApprovalRequest, ...supported } = options
 
   return supported
 }

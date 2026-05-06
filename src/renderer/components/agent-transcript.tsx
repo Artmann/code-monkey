@@ -145,7 +145,11 @@ type RenderNode =
       steps: ToolStep[]
       running: boolean
     }
-  | { kind: 'todo'; id: string; items: Array<{ text: string; completed: boolean }> }
+  | {
+      kind: 'todo'
+      id: string
+      items: Array<{ text: string; completed: boolean }>
+    }
   | { kind: 'error'; id: string; message: string }
   | { kind: 'merge'; id: string; baseBranch?: string; branchName?: string }
   | { kind: 'turn-complete'; id: string }
@@ -162,9 +166,7 @@ type RenderNode =
       id: string
       requestId: string
       questions: UserInputQuestion[]
-      resolved:
-        | null
-        | { answers: Record<string, string>; error?: string }
+      resolved: null | { answers: Record<string, string>; error?: string }
     }
   | {
       kind: 'plan-proposed'
@@ -198,7 +200,7 @@ function stepForItem(
     const label =
       count > 1
         ? `${count} files · ${first?.path ?? ''}`
-        : first?.path ?? 'file change'
+        : (first?.path ?? 'file change')
     return { key, tool: 'file', label, detail: first?.kind, ok }
   }
 
@@ -233,9 +235,7 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
     }
   }
 
-  let activity:
-    | (RenderNode & { kind: 'activity' })
-    | null = null
+  let activity: (RenderNode & { kind: 'activity' }) | null = null
   let nextActivityCounter = 0
 
   for (const event of events) {
@@ -246,7 +246,8 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
         kind: 'prep',
         id: event.id,
         payload:
-          (event.payload as PrepPayload | null | undefined) ?? ({} as PrepPayload)
+          (event.payload as PrepPayload | null | undefined) ??
+          ({} as PrepPayload)
       })
       continue
     }
@@ -317,14 +318,16 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
       flushActivity(activity)
       activity = null
 
-      const item = (event.payload as {
-        item?: {
-          id?: string
-          tool?: string
-          input?: unknown
-          summary?: string
-        }
-      } | null)?.item
+      const item = (
+        event.payload as {
+          item?: {
+            id?: string
+            tool?: string
+            input?: unknown
+            summary?: string
+          }
+        } | null
+      )?.item
 
       if (!item?.id) continue
 
@@ -340,9 +343,11 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
     }
 
     if (event.type === 'item.approval_resolved') {
-      const item = (event.payload as {
-        item?: { id?: string; decision?: string; reason?: string }
-      } | null)?.item
+      const item = (
+        event.payload as {
+          item?: { id?: string; decision?: string; reason?: string }
+        } | null
+      )?.item
 
       if (!item?.id) continue
 
@@ -363,12 +368,14 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
       flushActivity(activity)
       activity = null
 
-      const item = (event.payload as {
-        item?: {
-          id?: string
-          questions?: UserInputQuestion[]
-        }
-      } | null)?.item
+      const item = (
+        event.payload as {
+          item?: {
+            id?: string
+            questions?: UserInputQuestion[]
+          }
+        } | null
+      )?.item
 
       if (!item?.id) continue
 
@@ -383,13 +390,15 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
     }
 
     if (event.type === 'item.user_input_resolved') {
-      const item = (event.payload as {
-        item?: {
-          id?: string
-          answers?: Record<string, string>
-          error?: string
-        }
-      } | null)?.item
+      const item = (
+        event.payload as {
+          item?: {
+            id?: string
+            answers?: Record<string, string>
+            error?: string
+          }
+        } | null
+      )?.item
 
       if (!item?.id) continue
 
@@ -410,9 +419,11 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
       flushActivity(activity)
       activity = null
 
-      const item = (event.payload as {
-        item?: { id?: string; plan?: string }
-      } | null)?.item
+      const item = (
+        event.payload as {
+          item?: { id?: string; plan?: string }
+        } | null
+      )?.item
 
       const plan = typeof item?.plan === 'string' ? item.plan : ''
 
@@ -551,8 +562,8 @@ export function AgentTranscript({
 }) {
   if (events.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center py-10'>
-        <p className='text-xs text-muted-foreground'>
+      <div className="flex h-full items-center justify-center py-10">
+        <p className="text-xs text-muted-foreground">
           No output yet. The agent hasn&apos;t said anything.
         </p>
       </div>
@@ -565,7 +576,7 @@ export function AgentTranscript({
   const running = serverRunning && !cancelRequested
 
   return (
-    <div className='flex flex-col gap-2.5'>
+    <div className="flex flex-col gap-2.5">
       <AnimatePresence initial={false}>
         {nodes.map((node) => (
           <RenderedNode
@@ -611,8 +622,8 @@ function RenderedNode({ node }: { node: RenderNode }) {
   if (node.kind === 'merge')
     return (
       <SystemRow>
-        Merged <span className='font-mono'>{node.branchName ?? 'branch'}</span>{' '}
-        into <span className='font-mono'>{node.baseBranch ?? 'main'}</span>.
+        Merged <span className="font-mono">{node.branchName ?? 'branch'}</span>{' '}
+        into <span className="font-mono">{node.baseBranch ?? 'main'}</span>.
       </SystemRow>
     )
   if (node.kind === 'turn-complete') return null
@@ -641,16 +652,16 @@ function UserInputNode({
 
 function PlanProposedRow({ plan }: { plan: string }) {
   return (
-    <div className='flex flex-col gap-2 rounded-xl border border-banana/40 bg-banana/5 px-4 py-3'>
-      <div className='font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana'>
+    <div className="flex flex-col gap-2 rounded-xl border border-banana/40 bg-banana/5 px-4 py-3">
+      <div className="font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana">
         Plan proposed
       </div>
       {plan.trim() === '' ? (
-        <div className='font-mono text-[11.5px] text-muted-foreground'>
+        <div className="font-mono text-[11.5px] text-muted-foreground">
           (empty plan)
         </div>
       ) : (
-        <div className='prose prose-sm max-w-none whitespace-pre-wrap break-words font-mono text-[12.5px]'>
+        <div className="prose prose-sm max-w-none whitespace-pre-wrap break-words font-mono text-[12.5px]">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{plan}</ReactMarkdown>
         </div>
       )}
@@ -668,7 +679,7 @@ function ApprovalNode({
   if (node.resolved) {
     return (
       <ApprovalCard
-        state='resolved'
+        state="resolved"
         tool={node.tool}
         summary={node.summary}
         decision={node.resolved.decision}
@@ -679,7 +690,7 @@ function ApprovalNode({
 
   return (
     <ApprovalCard
-      state='pending'
+      state="pending"
       tool={node.tool}
       summary={node.summary}
       onDecide={(decision) => onDecide?.(node.requestId, decision)}
@@ -687,21 +698,16 @@ function ApprovalNode({
   )
 }
 
-function UserMessageCard({
-  text
-}: {
-  text: string
-  timestamp: string | null
-}) {
+function UserMessageCard({ text }: { text: string; timestamp: string | null }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className='flex justify-end'
+      className="flex justify-end"
     >
-      <div className='max-w-[78%] rounded-[14px] rounded-br-[4px] bg-[color:var(--bg-3)] px-3 py-2'>
-        <div className='prose prose-sm max-w-none text-[13.5px] leading-[1.5] text-[color:var(--fg)] dark:prose-invert'>
+      <div className="max-w-[78%] rounded-[14px] rounded-br-[4px] bg-[color:var(--bg-3)] px-3 py-2">
+        <div className="prose prose-sm max-w-none text-[13.5px] leading-[1.5] text-[color:var(--fg)] dark:prose-invert">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
         </div>
       </div>
@@ -711,8 +717,8 @@ function UserMessageCard({
 
 function SystemRow({ children }: { children: ReactNode }) {
   return (
-    <div className='px-1 py-1 font-mono text-[11px] text-muted-foreground/80'>
-      <span className='mr-2 text-muted-foreground/40'>⎯</span>
+    <div className="px-1 py-1 font-mono text-[11px] text-muted-foreground/80">
+      <span className="mr-2 text-muted-foreground/40">⎯</span>
       {children}
     </div>
   )
@@ -726,11 +732,11 @@ function PrepRow({ payload }: { payload: PrepPayload }) {
   return (
     <SystemRow>
       {scope === 'project' ? 'Project agent ready in ' : 'Worktree ready at '}
-      {where ? <code className='font-mono'>{where}</code> : null}
+      {where ? <code className="font-mono">{where}</code> : null}
       {branch ? (
         <>
           {' on '}
-          <code className='font-mono'>{branch}</code>
+          <code className="font-mono">{branch}</code>
         </>
       ) : null}
     </SystemRow>
@@ -779,7 +785,7 @@ function ActivityStrip({
       transition={{ duration: 0.2 }}
     >
       <button
-        type='button'
+        type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'group flex w-full items-center gap-2 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-2)] px-2.5 py-1.5 text-left text-[12px] text-[color:var(--fg-2)] transition-colors',
@@ -787,40 +793,40 @@ function ActivityStrip({
         )}
       >
         <span
-          aria-hidden='true'
+          aria-hidden="true"
           className={cn(
             'h-3.5 w-[2px] shrink-0 rounded-[1px] bg-[color:var(--accent)]',
             running && 'animate-attention-pulse'
           )}
         />
 
-        <span className='font-mono text-[11.5px] text-[color:var(--fg)]'>
+        <span className="font-mono text-[11.5px] text-[color:var(--fg)]">
           {running ? 'Working' : 'Activity'}
         </span>
-        <span className='text-[color:var(--fg-4)]'>·</span>
-        <span className='shrink-0 text-[color:var(--fg-3)]'>
+        <span className="text-[color:var(--fg-4)]">·</span>
+        <span className="shrink-0 text-[color:var(--fg-3)]">
           {summary}
           {failed > 0 ? (
-            <span className='ml-1 text-[color:var(--destructive)]'>
+            <span className="ml-1 text-[color:var(--destructive)]">
               · {failed} failed
             </span>
           ) : null}
         </span>
         {latestPreview ? (
           <>
-            <span className='text-[color:var(--fg-4)]'>·</span>
+            <span className="text-[color:var(--fg-4)]">·</span>
             <span
-              className='min-w-0 flex-1 truncate font-mono text-[11.5px] text-[color:var(--fg-3)]'
+              className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-[color:var(--fg-3)]"
               title={latestPreview}
             >
               {latestPreview}
             </span>
           </>
         ) : (
-          <span className='min-w-0 flex-1' />
+          <span className="min-w-0 flex-1" />
         )}
 
-        <span className='ml-2 inline-flex items-center gap-1'>
+        <span className="ml-2 inline-flex items-center gap-1">
           {steps.slice(0, 6).map((step) => {
             const Icon = toolIconFor(step.tool)
             return (
@@ -833,8 +839,8 @@ function ActivityStrip({
                 )}
               >
                 <Icon
-                  aria-hidden='true'
-                  className='size-3'
+                  aria-hidden="true"
+                  className="size-3"
                 />
               </span>
             )
@@ -843,13 +849,13 @@ function ActivityStrip({
 
         {open ? (
           <ChevronDown
-            aria-hidden='true'
-            className='size-3 shrink-0 text-[color:var(--fg-3)]'
+            aria-hidden="true"
+            className="size-3 shrink-0 text-[color:var(--fg-3)]"
           />
         ) : (
           <ChevronRight
-            aria-hidden='true'
-            className='size-3 shrink-0 text-[color:var(--fg-3)]'
+            aria-hidden="true"
+            className="size-3 shrink-0 text-[color:var(--fg-3)]"
           />
         )}
       </button>
@@ -861,9 +867,9 @@ function ActivityStrip({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.18 }}
-            className='mt-1 overflow-hidden'
+            className="mt-1 overflow-hidden"
           >
-            <div className='grid gap-1 rounded-lg border bg-card px-3.5 py-2.5'>
+            <div className="grid gap-1 rounded-lg border bg-card px-3.5 py-2.5">
               {steps.map((step) => {
                 const Icon = toolIconFor(step.tool)
                 return (
@@ -875,7 +881,7 @@ function ActivityStrip({
                     )}
                   >
                     <Icon
-                      aria-hidden='true'
+                      aria-hidden="true"
                       className={cn(
                         'size-3',
                         !step.ok && 'text-[color:var(--destructive)]'
@@ -891,7 +897,7 @@ function ActivityStrip({
                       {step.label}
                     </span>
                     {step.detail ? (
-                      <span className='font-mono text-[11px] text-muted-foreground'>
+                      <span className="font-mono text-[11px] text-muted-foreground">
                         {step.detail}
                       </span>
                     ) : null}
@@ -915,14 +921,14 @@ function TodoRow({
     <motion.ul
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className='rounded-lg border bg-card px-3.5 py-2.5 text-xs'
+      className="rounded-lg border bg-card px-3.5 py-2.5 text-xs"
     >
       {items.map((todo, index) => (
         <li
           key={`${todo.text}-${index}`}
-          className='flex gap-2 py-0.5'
+          className="flex gap-2 py-0.5"
         >
-          <span aria-hidden='true'>{todo.completed ? '☑' : '☐'}</span>
+          <span aria-hidden="true">{todo.completed ? '☑' : '☐'}</span>
           <span className={todo.completed ? 'line-through opacity-60' : ''}>
             {todo.text}
           </span>
@@ -937,14 +943,14 @@ function ErrorRow({ message }: { message: string }) {
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      role='alert'
-      className='flex items-start gap-2 rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3.5 py-2.5 text-xs text-[color:var(--destructive)]'
+      role="alert"
+      className="flex items-start gap-2 rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3.5 py-2.5 text-xs text-[color:var(--destructive)]"
     >
       <AlertTriangle
-        aria-hidden='true'
-        className='mt-0.5 size-3.5 shrink-0'
+        aria-hidden="true"
+        className="mt-0.5 size-3.5 shrink-0"
       />
-      <span className='whitespace-pre-wrap'>{message}</span>
+      <span className="whitespace-pre-wrap">{message}</span>
     </motion.div>
   )
 }
@@ -954,14 +960,14 @@ function RunningRow() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className='flex items-center gap-3 rounded-lg border bg-card px-3.5 py-2.5'
+      className="flex items-center gap-3 rounded-lg border bg-card px-3.5 py-2.5"
     >
       <Loader2
-        aria-hidden='true'
-        className='size-3.5 animate-spin text-banana'
+        aria-hidden="true"
+        className="size-3.5 animate-spin text-banana"
       />
-      <span className='text-sm font-medium'>Working…</span>
-      <span className='ml-auto font-mono text-[11px] text-muted-foreground'>
+      <span className="text-sm font-medium">Working…</span>
+      <span className="ml-auto font-mono text-[11px] text-muted-foreground">
         live
       </span>
     </motion.div>

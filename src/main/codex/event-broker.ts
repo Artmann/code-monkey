@@ -2,7 +2,10 @@ export type EventSubscriber<TEvent> = (event: TEvent) => void
 
 export type EventBroker<TEvent> = {
   publish: (threadId: string, event: TEvent) => void
-  subscribe: (threadId: string, subscriber: EventSubscriber<TEvent>) => () => void
+  subscribe: (
+    threadId: string,
+    subscriber: EventSubscriber<TEvent>
+  ) => () => void
 }
 
 export const createEventBroker = <TEvent>(): EventBroker<TEvent> => {
@@ -22,10 +25,7 @@ export const createEventBroker = <TEvent>(): EventBroker<TEvent> => {
     }
   }
 
-  const subscribe = (
-    threadId: string,
-    subscriber: EventSubscriber<TEvent>
-  ) => {
+  const subscribe = (threadId: string, subscriber: EventSubscriber<TEvent>) => {
     let set = subscribers.get(threadId)
 
     if (!set) {

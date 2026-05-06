@@ -5,10 +5,7 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 
-import type {
-  AgentRunner,
-  PersistedEvent
-} from '../../codex/agent-runner'
+import type { AgentRunner, PersistedEvent } from '../../codex/agent-runner'
 import type { EventBroker } from '../../codex/event-broker'
 import * as schema from '../../database/schema'
 

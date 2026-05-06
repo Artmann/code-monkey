@@ -22,8 +22,7 @@ test('ApprovalRequest has required fields', () => {
 
 test('ApprovalDecision discriminates by decision', () => {
   expectTypeOf<ApprovalDecision>().toEqualTypeOf<
-    | { decision: 'approve' }
-    | { decision: 'reject'; reason?: string }
+    { decision: 'approve' } | { decision: 'reject'; reason?: string }
   >()
 })
 

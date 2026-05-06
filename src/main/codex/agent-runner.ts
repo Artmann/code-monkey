@@ -36,11 +36,7 @@ export type PersistedEvent = {
 
 export type AgentRunnerDatabase = LibSQLDatabase<typeof schema>
 
-type AgentRunnerExecutor = BaseSQLiteDatabase<
-  'async',
-  ResultSet,
-  typeof schema
->
+type AgentRunnerExecutor = BaseSQLiteDatabase<'async', ResultSet, typeof schema>
 
 export type AgentRunnerDependencies = {
   database: AgentRunnerDatabase
@@ -96,9 +92,7 @@ const nextSequenceFor = async (
   return (rows[0]?.value ?? -1) + 1
 }
 
-const nextTabOrder = async (
-  database: AgentRunnerExecutor
-): Promise<number> => {
+const nextTabOrder = async (database: AgentRunnerExecutor): Promise<number> => {
   const rows = await database
     .select({ value: max(schema.threads.tabOrder) })
     .from(schema.threads)
@@ -160,9 +154,7 @@ export const createAgentRunner = (
         const existing = pendingUserInputs.get(threadId)
 
         if (existing) {
-          existing.reject(
-            new Error('superseded by another user-input request')
-          )
+          existing.reject(new Error('superseded by another user-input request'))
           pendingUserInputs.delete(threadId)
         }
 

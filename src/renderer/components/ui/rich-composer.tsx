@@ -323,13 +323,13 @@ export function RichComposer({
   return (
     <div
       ref={editorRef}
-      role='textbox'
+      role="textbox"
       aria-label={ariaLabel}
-      aria-multiline='true'
+      aria-multiline="true"
       contentEditable={!disabled}
       suppressContentEditableWarning
       data-placeholder={placeholder}
-      data-empty='true'
+      data-empty="true"
       onInput={handleInput}
       onPaste={handlePaste}
       onKeyDown={onKeyDown}

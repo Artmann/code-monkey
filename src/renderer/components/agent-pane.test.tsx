@@ -21,9 +21,7 @@ const buildThread = (overrides: Partial<Thread> = {}): Thread => ({
   ...overrides
 })
 
-const renderPane = (
-  partial: Partial<Parameters<typeof AgentPane>[0]> = {}
-) => {
+const renderPane = (partial: Partial<Parameters<typeof AgentPane>[0]> = {}) => {
   const onSendMessage = vi.fn()
   const onStopMessage = vi.fn()
   const events: ThreadEvent[] = partial.events ?? []
@@ -155,9 +153,7 @@ describe('AgentPane composer', () => {
 
     pasteImage(editor, file)
 
-    expect(
-      screen.getByText(/1 image attached/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/1 image attached/i)).toBeInTheDocument()
 
     expect(editor.querySelector('img')).not.toBeNull()
   })
@@ -167,18 +163,10 @@ describe('AgentPane composer', () => {
 
     const editor = getEditor()
 
-    pasteImage(
-      editor,
-      new File(['a'], 'a.png', { type: 'image/png' })
-    )
-    pasteImage(
-      editor,
-      new File(['b'], 'b.png', { type: 'image/png' })
-    )
+    pasteImage(editor, new File(['a'], 'a.png', { type: 'image/png' }))
+    pasteImage(editor, new File(['b'], 'b.png', { type: 'image/png' }))
 
-    expect(
-      screen.getByText(/2 images attached/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/2 images attached/i)).toBeInTheDocument()
   })
 
   it('renders Stop instead of Send while the thread is running', () => {
@@ -211,7 +199,9 @@ describe('AgentPane composer', () => {
     expect(editor.getAttribute('contenteditable')).toEqual('false')
 
     // The provider-not-configured warning links to settings.
-    const link = screen.getByRole('link', { name: /configure an agent provider/i })
+    const link = screen.getByRole('link', {
+      name: /configure an agent provider/i
+    })
 
     expect(link).toHaveAttribute('href', '/settings')
   })

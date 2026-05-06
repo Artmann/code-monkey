@@ -46,7 +46,7 @@ const createImageClipboardEvent = (file: File) => {
 describe('RichComposer', () => {
   it('renders the placeholder while empty', () => {
     const { container } = render(
-      <RichComposer placeholder='Tell the agent what to do…' />
+      <RichComposer placeholder="Tell the agent what to do…" />
     )
 
     const editor = container.querySelector('.rich-composer')
@@ -59,7 +59,7 @@ describe('RichComposer', () => {
   })
 
   it('hydrates with initialText on mount', () => {
-    const { container } = render(<RichComposer initialText='hello world' />)
+    const { container } = render(<RichComposer initialText="hello world" />)
 
     const editor = container.querySelector('.rich-composer')
 
@@ -114,7 +114,9 @@ describe('RichComposer', () => {
     editor.innerHTML = 'first line<br>second<div>third</div>'
     fireEvent.input(editor)
 
-    expect(lastSnapshot(handleChange)?.text).toEqual('first line\nsecond\nthird')
+    expect(lastSnapshot(handleChange)?.text).toEqual(
+      'first line\nsecond\nthird'
+    )
   })
 
   it('clear() empties the editor and notifies via onChange', () => {
@@ -124,7 +126,7 @@ describe('RichComposer', () => {
     const { container } = render(
       <RichComposer
         ref={ref}
-        initialText='draft text'
+        initialText="draft text"
         onChange={handleChange}
       />
     )
@@ -145,7 +147,7 @@ describe('RichComposer', () => {
     const { container } = render(
       <RichComposer
         ref={ref}
-        initialText='hello'
+        initialText="hello"
       />
     )
 

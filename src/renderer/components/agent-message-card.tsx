@@ -59,48 +59,48 @@ export function AgentMessageCard({
       {...fadeIn}
       className={cn('group flex flex-col', className)}
     >
-      <div className='mb-1 flex items-baseline gap-2'>
-        <span className='text-[11.5px] font-medium text-[color:var(--fg-3)]'>
+      <div className="mb-1 flex items-baseline gap-2">
+        <span className="text-[11.5px] font-medium text-[color:var(--fg-3)]">
           Agent
         </span>
         {time ? (
-          <span className='font-mono text-[10.5px] text-[color:var(--fg-4)]'>
+          <span className="font-mono text-[10.5px] text-[color:var(--fg-4)]">
             {time}
           </span>
         ) : null}
       </div>
 
-      <div className='prose prose-sm prose-agent max-w-none text-[13.5px] leading-[1.55] text-[color:var(--fg)] dark:prose-invert'>
+      <div className="prose prose-sm prose-agent max-w-none text-[13.5px] leading-[1.55] text-[color:var(--fg)] dark:prose-invert">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
         {streaming ? (
           <span
-            aria-hidden='true'
-            className='ml-0.5 inline-block animate-cursor-blink text-[color:var(--accent)]'
+            aria-hidden="true"
+            className="ml-0.5 inline-block animate-cursor-blink text-[color:var(--accent)]"
           >
             ▍
           </span>
         ) : null}
       </div>
 
-      <div className='mt-1 flex gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100'>
+      <div className="mt-1 flex gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
         <button
-          type='button'
+          type="button"
           onClick={onCopy}
-          className='inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
+          className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]"
         >
           {copied ? (
             <>
               <Check
-                aria-hidden='true'
-                className='size-3'
+                aria-hidden="true"
+                className="size-3"
               />
               Copied
             </>
           ) : (
             <>
               <Copy
-                aria-hidden='true'
-                className='size-3'
+                aria-hidden="true"
+                className="size-3"
               />
               Copy
             </>

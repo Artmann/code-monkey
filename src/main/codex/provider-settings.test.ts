@@ -21,8 +21,7 @@ const migrationsFolder = resolve(__dirname, '..', 'database', 'migrations')
 
 const createFakeSafeStorage = (available = true): SafeStorageLike => ({
   isEncryptionAvailable: () => available,
-  encryptString: (plain: string) =>
-    Buffer.from(`enc:${plain}`, 'utf8'),
+  encryptString: (plain: string) => Buffer.from(`enc:${plain}`, 'utf8'),
   decryptString: (buffer: Buffer) => {
     const text = buffer.toString('utf8')
 
@@ -82,11 +81,13 @@ describe('provider-settings', () => {
       mode: 'cli',
       binaryPath: '/usr/local/bin/codex'
     })
-    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
-      kind: 'codex',
-      mode: 'cli',
-      binaryPath: '/usr/local/bin/codex'
-    })
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual(
+      {
+        kind: 'codex',
+        mode: 'cli',
+        binaryPath: '/usr/local/bin/codex'
+      }
+    )
   })
 
   test('persists Codex CLI mode without a binary path', async () => {
@@ -121,11 +122,13 @@ describe('provider-settings', () => {
       { kind: 'codex', mode: 'api', apiKey: 'sk-secret' }
     )
 
-    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
-      kind: 'codex',
-      mode: 'api',
-      hasApiKey: true
-    })
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual(
+      {
+        kind: 'codex',
+        mode: 'api',
+        hasApiKey: true
+      }
+    )
   })
 
   test('raw DB value for the Codex API key is encrypted, not plaintext', async () => {
@@ -158,11 +161,13 @@ describe('provider-settings', () => {
       mode: 'cli',
       binaryPath: '/usr/bin/codex'
     })
-    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
-      kind: 'codex',
-      mode: 'cli',
-      binaryPath: '/usr/bin/codex'
-    })
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual(
+      {
+        kind: 'codex',
+        mode: 'cli',
+        binaryPath: '/usr/bin/codex'
+      }
+    )
   })
 
   test('switching kind clears the previous provider data', async () => {
@@ -187,7 +192,9 @@ describe('provider-settings', () => {
 
     const rows = await database.select().from(schema.settings).all()
 
-    expect(rows.find((row) => row.key === 'provider.codex.mode')).toBeUndefined()
+    expect(
+      rows.find((row) => row.key === 'provider.codex.mode')
+    ).toBeUndefined()
     expect(
       rows.find((row) => row.key === 'provider.codex.binaryPath')
     ).toBeUndefined()
@@ -208,11 +215,13 @@ describe('provider-settings', () => {
       mode: 'cli',
       executablePath: '/opt/claude/bin/claude'
     })
-    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
-      kind: 'claude-code',
-      mode: 'cli',
-      executablePath: '/opt/claude/bin/claude'
-    })
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual(
+      {
+        kind: 'claude-code',
+        mode: 'cli',
+        executablePath: '/opt/claude/bin/claude'
+      }
+    )
   })
 
   test('persists Claude Code CLI mode without an executable path', async () => {
@@ -243,11 +252,13 @@ describe('provider-settings', () => {
       mode: 'api',
       apiKey: 'sk-ant-secret'
     })
-    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
-      kind: 'claude-code',
-      mode: 'api',
-      hasApiKey: true
-    })
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual(
+      {
+        kind: 'claude-code',
+        mode: 'api',
+        hasApiKey: true
+      }
+    )
 
     const rows = await database.select().from(schema.settings).all()
     const apiKeyRow = rows.find(

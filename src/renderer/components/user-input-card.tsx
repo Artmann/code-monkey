@@ -32,7 +32,12 @@ export function UserInputCard({
   const [otherText, setOtherText] = useState<Record<string, string>>({})
 
   if (resolved) {
-    return <ResolvedRow questions={questions} resolved={resolved} />
+    return (
+      <ResolvedRow
+        questions={questions}
+        resolved={resolved}
+      />
+    )
   }
 
   const handleSelect = (questionText: string, value: string) => {
@@ -76,26 +81,26 @@ export function UserInputCard({
   })
 
   return (
-    <div className='flex flex-col gap-4 rounded-xl border border-banana/50 bg-banana/5 px-4 py-3'>
-      <div className='font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana'>
+    <div className="flex flex-col gap-4 rounded-xl border border-banana/50 bg-banana/5 px-4 py-3">
+      <div className="font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana">
         Question for you
       </div>
 
       {questions.map((entry, index) => (
         <div
           key={`${entry.question}-${index}`}
-          className='flex flex-col gap-2'
+          className="flex flex-col gap-2"
         >
-          <div className='flex items-baseline gap-2'>
-            <span className='rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground'>
+          <div className="flex items-baseline gap-2">
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
               {entry.header}
             </span>
-            <span className='text-[13px] font-medium text-foreground'>
+            <span className="text-[13px] font-medium text-foreground">
               {entry.question}
             </span>
           </div>
 
-          <div className='flex flex-col gap-1.5'>
+          <div className="flex flex-col gap-1.5">
             {entry.options.map((option) => {
               const isSelected = answers[entry.question] === option.label
 
@@ -110,16 +115,16 @@ export function UserInputCard({
                   )}
                 >
                   <input
-                    type='radio'
+                    type="radio"
                     name={entry.question}
                     value={option.label}
                     checked={isSelected}
                     onChange={() => handleSelect(entry.question, option.label)}
-                    className='mt-1'
+                    className="mt-1"
                   />
-                  <div className='flex flex-col gap-0.5'>
-                    <span className='font-medium'>{option.label}</span>
-                    <span className='text-[12px] text-muted-foreground'>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{option.label}</span>
+                    <span className="text-[12px] text-muted-foreground">
                       {option.description}
                     </span>
                   </div>
@@ -136,14 +141,14 @@ export function UserInputCard({
               )}
             >
               <input
-                type='radio'
+                type="radio"
                 name={entry.question}
-                value='__other__'
+                value="__other__"
                 checked={answers[entry.question] === '__other__'}
                 onChange={() => handleSelect(entry.question, '__other__')}
-                className='mt-1'
+                className="mt-1"
               />
-              <span className='font-medium'>Other (write your own)</span>
+              <span className="font-medium">Other (write your own)</span>
             </label>
 
             {answers[entry.question] === '__other__' ? (
@@ -155,17 +160,17 @@ export function UserInputCard({
                     [entry.question]: event.target.value
                   }))
                 }
-                placeholder='Type your answer'
-                className='min-h-[60px] resize-none text-[13px]'
+                placeholder="Type your answer"
+                className="min-h-[60px] resize-none text-[13px]"
               />
             ) : null}
           </div>
         </div>
       ))}
 
-      <div className='flex justify-end'>
+      <div className="flex justify-end">
         <Button
-          size='sm'
+          size="sm"
           disabled={!allAnswered}
           onClick={handleSubmit}
         >
@@ -185,27 +190,27 @@ function ResolvedRow({
 }) {
   if (resolved.error) {
     return (
-      <div className='rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-1.5 text-[11.5px] text-[color:var(--destructive)]'>
+      <div className="rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-1.5 text-[11.5px] text-[color:var(--destructive)]">
         Question canceled — {resolved.error}
       </div>
     )
   }
 
   return (
-    <div className='rounded-lg border border-muted-foreground/20 bg-muted/30 px-3 py-2 text-[11.5px] text-muted-foreground'>
-      <div className='mb-1 font-display text-[10px] font-semibold uppercase tracking-[0.16em]'>
+    <div className="rounded-lg border border-muted-foreground/20 bg-muted/30 px-3 py-2 text-[11.5px] text-muted-foreground">
+      <div className="mb-1 font-display text-[10px] font-semibold uppercase tracking-[0.16em]">
         Answered
       </div>
-      <ul className='flex flex-col gap-1'>
+      <ul className="flex flex-col gap-1">
         {questions.map((entry, index) => (
           <li
             key={`${entry.question}-${index}`}
-            className='flex flex-col'
+            className="flex flex-col"
           >
-            <span className='text-[11px] text-muted-foreground/80'>
+            <span className="text-[11px] text-muted-foreground/80">
               {entry.question}
             </span>
-            <span className='font-mono text-[11.5px]'>
+            <span className="font-mono text-[11.5px]">
               {resolved.answers[entry.question] ?? '(no answer)'}
             </span>
           </li>

@@ -79,8 +79,7 @@ const BINARY_PATH_KEY = 'provider.codex.binaryPath'
 const API_KEY_ENCRYPTED_KEY = 'provider.codex.apiKeyEncrypted'
 const CLAUDE_CODE_MODE_KEY = 'provider.claude-code.mode'
 const CLAUDE_CODE_EXECUTABLE_PATH_KEY = 'provider.claude-code.executablePath'
-const CLAUDE_CODE_API_KEY_ENCRYPTED_KEY =
-  'provider.claude-code.apiKeyEncrypted'
+const CLAUDE_CODE_API_KEY_ENCRYPTED_KEY = 'provider.claude-code.apiKeyEncrypted'
 
 const ALL_PROVIDER_KEYS = [
   KIND_KEY,

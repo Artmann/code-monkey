@@ -44,26 +44,26 @@ export function StatusDot({
         style={{ width: size, height: size }}
       >
         <svg
-          viewBox='0 0 16 16'
+          viewBox="0 0 16 16"
           width={size}
           height={size}
         >
           <circle
-            cx='8'
-            cy='8'
-            r='6.5'
-            fill='none'
-            stroke='currentColor'
-            strokeWidth='1.4'
-            strokeDasharray='3 2'
-            className='animate-status-spin'
+            cx="8"
+            cy="8"
+            r="6.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeDasharray="3 2"
+            className="animate-status-spin"
             style={{ transformOrigin: '8px 8px' }}
           />
           <circle
-            cx='8'
-            cy='8'
-            r='2.5'
-            fill='currentColor'
+            cx="8"
+            cy="8"
+            r="2.5"
+            fill="currentColor"
           />
         </svg>
       </span>
@@ -82,23 +82,23 @@ export function StatusDot({
         style={{ width: size, height: size }}
       >
         <svg
-          viewBox='0 0 16 16'
+          viewBox="0 0 16 16"
           width={size}
           height={size}
         >
           <circle
-            cx='8'
-            cy='8'
-            r='7'
-            fill='currentColor'
+            cx="8"
+            cy="8"
+            r="7"
+            fill="currentColor"
           />
           <path
-            d='m5 8 2.2 2.2L11 6'
-            stroke='white'
-            strokeWidth='1.6'
-            fill='none'
-            strokeLinecap='round'
-            strokeLinejoin='round'
+            d="m5 8 2.2 2.2L11 6"
+            stroke="white"
+            strokeWidth="1.6"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       </span>
@@ -117,20 +117,20 @@ export function StatusDot({
         style={{ width: size, height: size }}
       >
         <svg
-          viewBox='0 0 16 16'
+          viewBox="0 0 16 16"
           width={size}
           height={size}
         >
           <circle
-            cx='8'
-            cy='8'
-            r='7'
-            fill='currentColor'
+            cx="8"
+            cy="8"
+            r="7"
+            fill="currentColor"
           />
           <path
-            d='M5 8h6'
-            stroke='white'
-            strokeWidth='1.6'
+            d="M5 8h6"
+            stroke="white"
+            strokeWidth="1.6"
           />
         </svg>
       </span>
@@ -148,17 +148,17 @@ export function StatusDot({
       style={{ width: size, height: size }}
     >
       <svg
-        viewBox='0 0 16 16'
+        viewBox="0 0 16 16"
         width={size}
         height={size}
       >
         <circle
-          cx='8'
-          cy='8'
-          r='6.5'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='1.4'
+          cx="8"
+          cy="8"
+          r="6.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
         />
       </svg>
     </span>

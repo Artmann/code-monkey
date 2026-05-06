@@ -4,8 +4,7 @@ import { useCallback, useState } from 'react'
 // half-written prompt. One slot per thread id, keyed in localStorage.
 const STORAGE_PREFIX = 'code-monkey:draft:'
 
-const draftKeyFor = (threadId: string): string =>
-  `${STORAGE_PREFIX}${threadId}`
+const draftKeyFor = (threadId: string): string => `${STORAGE_PREFIX}${threadId}`
 
 const readDraft = (threadId: string): string => {
   try {
@@ -46,9 +45,7 @@ export type DraftHandle = {
   clear: () => void
 }
 
-export function useDraft(
-  threadId: string | null | undefined
-): DraftHandle {
+export function useDraft(threadId: string | null | undefined): DraftHandle {
   // Lazy initialiser hits localStorage exactly once per mount so the
   // textarea renders with the correct draft on the very first paint —
   // no flicker between empty and restored content.

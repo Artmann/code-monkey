@@ -168,12 +168,8 @@
           "name": "tasks_project_id_projects_id_fk",
           "tableFrom": "tasks",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -231,10 +227,7 @@
       "indexes": {
         "thread_events_thread_sequence_idx": {
           "name": "thread_events_thread_sequence_idx",
-          "columns": [
-            "thread_id",
-            "sequence"
-          ],
+          "columns": ["thread_id", "sequence"],
           "isUnique": true
         }
       },
@@ -243,12 +236,8 @@
           "name": "thread_events_thread_id_threads_id_fk",
           "tableFrom": "thread_events",
           "tableTo": "threads",
-          "columnsFrom": [
-            "thread_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["thread_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -337,12 +326,8 @@
           "name": "threads_task_id_tasks_id_fk",
           "tableFrom": "threads",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
