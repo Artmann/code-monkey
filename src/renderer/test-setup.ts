@@ -29,12 +29,15 @@ if (typeof window !== 'undefined') {
       }
     }
 
-    ;(
-      window as unknown as { ResizeObserver: typeof ResizeObserverMock }
-    ).ResizeObserver = ResizeObserverMock
-    ;(
-      globalThis as unknown as { ResizeObserver: typeof ResizeObserverMock }
-    ).ResizeObserver = ResizeObserverMock
+    const resizeTarget = window as unknown as {
+      ResizeObserver: typeof ResizeObserverMock
+    }
+    const resizeGlobalTarget = globalThis as unknown as {
+      ResizeObserver: typeof ResizeObserverMock
+    }
+
+    resizeTarget.ResizeObserver = ResizeObserverMock
+    resizeGlobalTarget.ResizeObserver = ResizeObserverMock
   }
 
   if (!window.HTMLElement.prototype.hasPointerCapture) {
