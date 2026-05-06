@@ -42,6 +42,9 @@ export const createCodexProvider = async (
       return thread.id ?? null
     },
     runStreamed: async (input) => {
+      // The Codex SDK does not currently expose an abort handle on its
+      // streamed run. The runner relies on its synthetic turn.failed event
+      // to flip the UI out of the working state when a user cancels.
       const result = await thread.runStreamed(input)
 
       return {

@@ -1,14 +1,16 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { resolve } from 'node:path'
-import { beforeEach, describe, expect, test } from 'vitest'
+import { createClient } from '@libsql/client'
+import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
+import { migrate } from 'drizzle-orm/libsql/migrator'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import type { SafeStorageLike } from '../../codex/provider-settings'
 import * as schema from '../../database/schema'
 import { createSettingsRoutes } from './settings'
 
-type TestDatabase = ReturnType<typeof drizzle<typeof schema>>
+type TestDatabase = LibSQLDatabase<typeof schema>
 
 const migrationsFolder = resolve(
   __dirname,
@@ -24,20 +26,24 @@ const createFakeSafeStorage = (available = true): SafeStorageLike => ({
   decryptString: (buffer) => {
     const text = buffer.toString('utf8')
 
-    if (!text.startsWith('enc:')) throw new Error('bad ciphertext')
+    if (!text.startsWith('enc:')) {
+      throw new Error('bad ciphertext')
+    }
 
     return text.slice('enc:'.length)
   }
 })
 
-const createTestDatabase = (): TestDatabase => {
-  const sqlite = new Database(':memory:')
+const createTestDatabase = async (
+  databaseFilePath: string
+): Promise<TestDatabase> => {
+  const client = createClient({ url: `file:${databaseFilePath}` })
 
-  sqlite.pragma('foreign_keys = ON')
+  await client.execute('PRAGMA foreign_keys = ON')
 
-  const database = drizzle(sqlite, { schema })
+  const database = drizzle(client, { schema })
 
-  migrate(database, { migrationsFolder })
+  await migrate(database, { migrationsFolder })
 
   return database
 }
@@ -45,10 +51,17 @@ const createTestDatabase = (): TestDatabase => {
 describe('settings routes', () => {
   let database: TestDatabase
   let safeStorage: SafeStorageLike
+  let temporaryDirectory: string
 
-  beforeEach(() => {
-    database = createTestDatabase()
+  beforeEach(async () => {
+    temporaryDirectory = mkdtempSync(join(tmpdir(), 'code-monkey-test-'))
+
+    database = await createTestDatabase(join(temporaryDirectory, 'test.db'))
     safeStorage = createFakeSafeStorage()
+  })
+
+  afterEach(() => {
+    rmSync(temporaryDirectory, { recursive: true, force: true })
   })
 
   const buildRoutes = () => createSettingsRoutes({ database, safeStorage })

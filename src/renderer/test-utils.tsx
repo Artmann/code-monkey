@@ -3,8 +3,6 @@ import { render, type RenderOptions } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
-import type { Project } from './hooks/use-projects'
-import type { Task } from './hooks/use-tasks'
 
 export function createTestQueryClient() {
   return new QueryClient({
@@ -59,44 +57,24 @@ export function renderWithProviders(
   })
 }
 
-export function buildProject(overrides: Partial<Project> = {}): Project {
-  const now = new Date().toISOString()
-
-  return {
-    id: overrides.id ?? 'project-1',
-    name: overrides.name ?? 'Test project',
-    directoryPath: overrides.directoryPath ?? '/Users/test/project',
-    createdAt: overrides.createdAt ?? now,
-    updatedAt: overrides.updatedAt ?? now,
-    deletedAt: overrides.deletedAt ?? null
-  }
-}
-
-export function buildTask(overrides: Partial<Task> = {}): Task {
-  const now = new Date().toISOString()
-
-  return {
-    id: overrides.id ?? 'task-1',
-    projectId: overrides.projectId ?? 'project-1',
-    title: overrides.title ?? 'Test task',
-    description: overrides.description ?? null,
-    status: overrides.status ?? 'todo',
-    agentState: overrides.agentState ?? 'idle',
-    sortOrder: overrides.sortOrder ?? 0,
-    createdAt: overrides.createdAt ?? now,
-    updatedAt: overrides.updatedAt ?? now,
-    deletedAt: overrides.deletedAt ?? null
-  }
-}
-
 type FetchMock = ReturnType<typeof vi.fn>
 
 export function mockApiBridge(port = 55_555) {
-  (window as unknown as { codeMonkey: { apiPort: number; selectFolder: FetchMock } }).codeMonkey =
-    {
-      apiPort: port,
-      selectFolder: vi.fn()
+  (window as unknown as {
+    codeMonkey: {
+      apiPort: number
+      selectFolder: FetchMock
+      onNewTabRequested: FetchMock
     }
+  }).codeMonkey = {
+    apiPort: port,
+    selectFolder: vi.fn(),
+    onNewTabRequested: vi.fn(() => {
+      return () => {
+        // no-op
+      }
+    })
+  }
 }
 
 export function restoreApiBridge() {

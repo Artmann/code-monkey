@@ -1,20 +1,34 @@
 import { zValidator } from '@hono/zod-validator'
-import { asc, desc, eq } from 'drizzle-orm'
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import { asc, eq, isNull } from 'drizzle-orm'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 
 import type {
   AgentRunner,
-  PersistedEvent,
-  TaskStateEvent
+  PersistedEvent
 } from '../../codex/agent-runner'
 import type { EventBroker } from '../../codex/event-broker'
 import * as schema from '../../database/schema'
 
+// 'code' = full-access (default agent behaviour); 'plan' = SDK plan mode
+// where the agent thinks aloud without executing tools. Kept narrow on the
+// API surface so the wider RuntimeMode union stays an internal concern.
 const messageSchema = z.object({
-  text: z.string().min(1).max(20_000)
+  text: z.string().min(1).max(20_000),
+  mode: z.enum(['code', 'plan']).optional()
+})
+
+const createThreadSchema = z.object({
+  directoryPath: z.string().min(1),
+  name: z.string().min(1).max(200).optional(),
+  initialMessage: z.string().min(1).max(20_000).optional()
+})
+
+const updateThreadSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  tabOrder: z.number().int().nonnegative().optional()
 })
 
 const approvalSchema = z.discriminatedUnion('decision', [
@@ -30,9 +44,8 @@ const userInputSchema = z.object({
 })
 
 export type ThreadsRoutesDependencies = {
-  database: BetterSQLite3Database<typeof schema>
+  database: LibSQLDatabase<typeof schema>
   broker: EventBroker<PersistedEvent>
-  taskStateBroker?: EventBroker<TaskStateEvent>
   runner: AgentRunner
 }
 
@@ -47,56 +60,44 @@ const parsePayload = (raw: string): unknown => {
 export const createThreadsRoutes = (
   dependencies: ThreadsRoutesDependencies
 ) => {
-  const { database, broker, taskStateBroker, runner } = dependencies
+  const { database, broker, runner } = dependencies
 
   const routes = new Hono()
 
-  routes.get('/tasks/:taskId/threads', (context) => {
-    const taskId = context.req.param('taskId')
-
-    const threads = database
+  routes.get('/threads', async (context) => {
+    const threads = await database
       .select()
       .from(schema.threads)
-      .where(eq(schema.threads.taskId, taskId))
-      .orderBy(desc(schema.threads.createdAt))
-      .all()
-
-    return context.json({ threads })
-  })
-
-  routes.get('/projects/:projectId/threads', (context) => {
-    const projectId = context.req.param('projectId')
-
-    const threads = database
-      .select()
-      .from(schema.threads)
-      .where(eq(schema.threads.projectId, projectId))
-      .orderBy(desc(schema.threads.createdAt))
+      .where(isNull(schema.threads.closedAt))
+      .orderBy(asc(schema.threads.tabOrder))
       .all()
 
     return context.json({ threads })
   })
 
   routes.post(
-    '/projects/:projectId/threads',
-    zValidator('json', messageSchema),
+    '/threads',
+    zValidator('json', createThreadSchema),
     async (context) => {
-      const projectId = context.req.param('projectId')
       const body = context.req.valid('json')
 
       try {
-        const { threadId } = await runner.startProjectThread(
-          projectId,
-          body.text
-        )
+        const thread = await runner.createThread({
+          directoryPath: body.directoryPath,
+          name: body.name
+        })
 
-        const thread = database
+        if (body.initialMessage) {
+          await runner.continueThread(thread.id, body.initialMessage)
+        }
+
+        const refreshed = await database
           .select()
           .from(schema.threads)
-          .where(eq(schema.threads.id, threadId))
+          .where(eq(schema.threads.id, thread.id))
           .get()
 
-        return context.json({ thread }, 201)
+        return context.json({ thread: refreshed ?? thread }, 201)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
@@ -105,64 +106,10 @@ export const createThreadsRoutes = (
     }
   )
 
-  routes.post('/tasks/:taskId/threads', async (context) => {
-    const taskId = context.req.param('taskId')
-
-    try {
-      const { threadId } = await runner.start(taskId)
-
-      const thread = database
-        .select()
-        .from(schema.threads)
-        .where(eq(schema.threads.id, threadId))
-        .get()
-
-      return context.json({ thread }, 201)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-
-      return context.json({ error: message }, 500)
-    }
-  })
-
-  routes.post('/tasks/:taskId/threads/restart', async (context) => {
-    const taskId = context.req.param('taskId')
-
-    try {
-      const { threadId } = await runner.restartThread(taskId)
-
-      const thread = database
-        .select()
-        .from(schema.threads)
-        .where(eq(schema.threads.id, threadId))
-        .get()
-
-      return context.json({ thread }, 201)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-
-      return context.json({ error: message }, 400)
-    }
-  })
-
-  routes.post('/tasks/:taskId/merge', async (context) => {
-    const taskId = context.req.param('taskId')
-
-    try {
-      const merge = await runner.mergeTask(taskId)
-
-      return context.json({ merge })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-
-      return context.json({ error: message }, 400)
-    }
-  })
-
-  routes.get('/threads/:threadId', (context) => {
+  routes.get('/threads/:threadId', async (context) => {
     const threadId = context.req.param('threadId')
 
-    const thread = database
+    const thread = await database
       .select()
       .from(schema.threads)
       .where(eq(schema.threads.id, threadId))
@@ -172,7 +119,7 @@ export const createThreadsRoutes = (
       return context.json({ error: 'Thread not found' }, 404)
     }
 
-    const events = database
+    const events = await database
       .select()
       .from(schema.threadEvents)
       .where(eq(schema.threadEvents.threadId, threadId))
@@ -188,6 +135,66 @@ export const createThreadsRoutes = (
     })
   })
 
+  routes.patch(
+    '/threads/:threadId',
+    zValidator('json', updateThreadSchema),
+    async (context) => {
+      const threadId = context.req.param('threadId')
+      const body = context.req.valid('json')
+
+      const updates: Partial<schema.NewThread> = {}
+
+      if (body.name !== undefined) {
+        updates.name = body.name
+      }
+
+      if (body.tabOrder !== undefined) {
+        updates.tabOrder = body.tabOrder
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return context.json({ error: 'No updates provided' }, 400)
+      }
+
+      const rows = await database
+        .update(schema.threads)
+        .set(updates)
+        .where(eq(schema.threads.id, threadId))
+        .returning()
+        .all()
+
+      const row = rows[0]
+
+      if (!row) {
+        return context.json({ error: 'Thread not found' }, 404)
+      }
+
+      return context.json({ thread: row })
+    }
+  )
+
+  routes.delete('/threads/:threadId', async (context) => {
+    const threadId = context.req.param('threadId')
+
+    await runner.closeThread(threadId)
+
+    return context.json({ ok: true })
+  })
+
+  routes.post('/threads/:threadId/cancel', async (context) => {
+    const threadId = context.req.param('threadId')
+
+    try {
+      await runner.cancelThread(threadId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      return context.json({ error: message }, 500)
+    }
+
+    return context.json({ ok: true }, 202)
+  })
+
   routes.post(
     '/threads/:threadId/messages',
     zValidator('json', messageSchema),
@@ -195,7 +202,7 @@ export const createThreadsRoutes = (
       const threadId = context.req.param('threadId')
       const body = context.req.valid('json')
 
-      const thread = database
+      const thread = await database
         .select()
         .from(schema.threads)
         .where(eq(schema.threads.id, threadId))
@@ -205,8 +212,10 @@ export const createThreadsRoutes = (
         return context.json({ error: 'Thread not found' }, 404)
       }
 
+      const runtimeMode = body.mode === 'plan' ? 'plan' : 'full-access'
+
       try {
-        await runner.continueThread(threadId, body.text)
+        await runner.continueThread(threadId, body.text, runtimeMode)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
@@ -230,9 +239,6 @@ export const createThreadsRoutes = (
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
-        // Stale or unmatched approvals come back as a runner error. 409
-        // distinguishes them from actual server failures so the UI can
-        // re-fetch the thread state instead of retrying.
         if (message.startsWith('No pending approval matches')) {
           return context.json({ error: message }, 409)
         }
@@ -268,36 +274,6 @@ export const createThreadsRoutes = (
     }
   )
 
-  routes.get('/projects/:projectId/stream', (context) => {
-    const projectId = context.req.param('projectId')
-
-    return streamSSE(context, async (stream) => {
-      if (!taskStateBroker) {
-        await new Promise<void>(() => undefined)
-        return
-      }
-
-      let resolveClosed: (() => void) | null = null
-      const closed = new Promise<void>((resolve) => {
-        resolveClosed = resolve
-      })
-
-      const unsubscribe = taskStateBroker.subscribe(projectId, (event) => {
-        void stream.writeSSE({
-          event: 'task.state_changed',
-          data: JSON.stringify(event)
-        })
-      })
-
-      stream.onAbort(() => {
-        unsubscribe()
-        resolveClosed?.()
-      })
-
-      await closed
-    })
-  })
-
   routes.get('/threads/:threadId/stream', (context) => {
     const threadId = context.req.param('threadId')
 
@@ -315,7 +291,9 @@ export const createThreadsRoutes = (
       subscribers.push(unsubscribe)
 
       stream.onAbort(() => {
-        for (const unsub of subscribers) unsub()
+        for (const unsub of subscribers) {
+          unsub()
+        }
       })
 
       await new Promise<void>((resolutionHandler) => {

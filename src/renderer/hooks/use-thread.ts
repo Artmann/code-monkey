@@ -6,6 +6,7 @@ import {
 import { useEffect } from 'react'
 
 import { apiFetch, getApiBaseUrl } from '../lib/api-client'
+import { clearDraftStorage } from './use-draft'
 
 export type ThreadStatus =
   | 'starting'
@@ -16,14 +17,14 @@ export type ThreadStatus =
 
 export type Thread = {
   id: string
-  taskId: string | null
-  projectId: string | null
-  codexThreadId: string | null
-  worktreePath: string | null
-  branchName: string | null
-  baseBranch: string | null
+  name: string
+  directoryPath: string
+  provider: string | null
+  externalThreadId: string | null
   status: ThreadStatus
   errorMessage: string | null
+  tabOrder: number
+  closedAt: string | null
   createdAt: string
   lastActivityAt: string
 }
@@ -42,14 +43,10 @@ export type ThreadResponse = {
   events: ThreadEvent[]
 }
 
+export const threadsKey = ['threads'] as const
+
 export const threadKey = (threadId: string) =>
   ['thread', threadId] as const
-
-export const taskThreadsKey = (taskId: string) =>
-  ['tasks', taskId, 'threads'] as const
-
-export const projectThreadsKey = (projectId: string) =>
-  ['projects', projectId, 'threads'] as const
 
 const SUBSCRIBED_EVENT_TYPES = [
   'prep',
@@ -57,6 +54,7 @@ const SUBSCRIBED_EVENT_TYPES = [
   'turn.started',
   'turn.completed',
   'turn.failed',
+  'turn.cancelled',
   'item.started',
   'item.updated',
   'item.completed',
@@ -79,17 +77,23 @@ export const derivePendingApproval = (
   const resolvedIds = new Set<string>()
 
   for (const event of events) {
-    if (event.type !== 'item.approval_resolved') continue
+    if (event.type !== 'item.approval_resolved') {
+      continue
+    }
 
     const item = (event.payload as { item?: { id?: string } } | null)?.item
 
-    if (item?.id) resolvedIds.add(item.id)
+    if (item?.id) {
+      resolvedIds.add(item.id)
+    }
   }
 
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]
 
-    if (event?.type !== 'item.approval_requested') continue
+    if (event?.type !== 'item.approval_requested') {
+      continue
+    }
 
     const item = (event.payload as {
       item?: {
@@ -100,7 +104,9 @@ export const derivePendingApproval = (
       }
     } | null)?.item
 
-    if (!item?.id || resolvedIds.has(item.id)) continue
+    if (!item?.id || resolvedIds.has(item.id)) {
+      continue
+    }
 
     return {
       id: item.id,
@@ -113,32 +119,11 @@ export const derivePendingApproval = (
   return null
 }
 
-export function useTaskThreadsQuery(taskId: string | null | undefined) {
+export function useThreadsQuery() {
   return useQuery({
-    queryKey: taskThreadsKey(taskId ?? ''),
-    enabled: Boolean(taskId),
+    queryKey: threadsKey,
     queryFn: async () => {
-      if (!taskId) return []
-
-      const data = await apiFetch<{ threads: Thread[] }>(
-        `/tasks/${taskId}/threads`
-      )
-
-      return data.threads
-    }
-  })
-}
-
-export function useProjectThreadsQuery(projectId: string | null | undefined) {
-  return useQuery({
-    queryKey: projectThreadsKey(projectId ?? ''),
-    enabled: Boolean(projectId),
-    queryFn: async () => {
-      if (!projectId) return []
-
-      const data = await apiFetch<{ threads: Thread[] }>(
-        `/projects/${projectId}/threads`
-      )
+      const data = await apiFetch<{ threads: Thread[] }>('/threads')
 
       return data.threads
     }
@@ -150,18 +135,72 @@ export function useThreadQuery(threadId: string | null | undefined) {
     queryKey: threadKey(threadId ?? ''),
     enabled: Boolean(threadId),
     queryFn: async () => {
-      if (!threadId) return null
+      if (!threadId) {
+        return null
+      }
 
       return apiFetch<ThreadResponse>(`/threads/${threadId}`)
     }
   })
 }
 
+const extractEventMessage = (payload: unknown): string | null => {
+  if (typeof payload !== 'object' || payload === null) {
+    return null
+  }
+
+  const record = payload as {
+    message?: unknown
+    error?: { message?: unknown }
+  }
+
+  if (typeof record.message === 'string') {
+    return record.message
+  }
+
+  if (
+    record.error &&
+    typeof record.error === 'object' &&
+    typeof record.error.message === 'string'
+  ) {
+    return record.error.message
+  }
+
+  return null
+}
+
+// Mirror agent-runner's backend status transitions on terminal events. The
+// backend updates the DB row, but the SSE stream only carries events — so
+// without this the thread row in the React Query cache stays 'running'
+// forever after the agent finishes.
+export const applyStatusFromEvent = (
+  thread: Thread,
+  event: ThreadEvent
+): Thread => {
+  if (event.type === 'turn.completed' || event.type === 'turn.cancelled') {
+    if (thread.status === 'running' || thread.status === 'starting') {
+      return { ...thread, status: 'idle', errorMessage: null }
+    }
+
+    return thread
+  }
+
+  if (event.type === 'turn.failed' || event.type === 'error') {
+    const message = extractEventMessage(event.payload) ?? 'Unknown agent error'
+
+    return { ...thread, status: 'error', errorMessage: message }
+  }
+
+  return thread
+}
+
 const appendEvent = (
   previous: ThreadResponse | null | undefined,
   event: ThreadEvent
 ): ThreadResponse | null | undefined => {
-  if (!previous) return previous
+  if (!previous) {
+    return previous
+  }
 
   if (previous.events.some((entry) => entry.sequence === event.sequence)) {
     return previous
@@ -169,6 +208,7 @@ const appendEvent = (
 
   return {
     ...previous,
+    thread: applyStatusFromEvent(previous.thread, event),
     events: [...previous.events, event].sort(
       (a, b) => a.sequence - b.sequence
     )
@@ -179,7 +219,9 @@ export function useThreadStream(threadId: string | null | undefined) {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    if (!threadId) return
+    if (!threadId) {
+      return
+    }
 
     const source = new EventSource(
       `${getApiBaseUrl()}/threads/${threadId}/stream`
@@ -217,17 +259,23 @@ export function useThreadStream(threadId: string | null | undefined) {
   }, [threadId, queryClient])
 }
 
-type StartThreadResponse = { thread: Thread }
+type CreateThreadInput = {
+  directoryPath: string
+  name?: string
+  initialMessage?: string
+}
 
-export function useStartThreadMutation() {
+type ThreadResponseEnvelope = { thread: Thread }
+
+export function useCreateThreadMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (taskId: string) => {
-      const data = await apiFetch<StartThreadResponse>(
-        `/tasks/${taskId}/threads`,
-        { method: 'POST' }
-      )
+    mutationFn: async (input: CreateThreadInput) => {
+      const data = await apiFetch<ThreadResponseEnvelope>('/threads', {
+        method: 'POST',
+        body: JSON.stringify(input)
+      })
 
       return data.thread
     },
@@ -237,83 +285,106 @@ export function useStartThreadMutation() {
         events: []
       })
 
-      if (thread.taskId) {
-        void queryClient.invalidateQueries({
-          queryKey: taskThreadsKey(thread.taskId)
-        })
-        void queryClient.invalidateQueries({
-          queryKey: ['tasks', thread.taskId]
-        })
-      }
+      void queryClient.invalidateQueries({ queryKey: threadsKey })
     }
   })
 }
 
-export function useRestartThreadMutation() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (taskId: string) => {
-      const data = await apiFetch<StartThreadResponse>(
-        `/tasks/${taskId}/threads/restart`,
-        { method: 'POST' }
-      )
-
-      return data.thread
-    },
-    onSuccess: (thread) => {
-      queryClient.setQueryData<ThreadResponse | null>(threadKey(thread.id), {
-        thread,
-        events: []
-      })
-
-      if (thread.taskId) {
-        void queryClient.invalidateQueries({
-          queryKey: taskThreadsKey(thread.taskId)
-        })
-        void queryClient.invalidateQueries({
-          queryKey: ['tasks', thread.taskId]
-        })
-      }
-    }
-  })
-}
-
-export function useStartProjectThreadMutation() {
+export function useUpdateThreadMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({
-      projectId,
-      text
+      threadId,
+      ...patch
     }: {
-      projectId: string
-      text: string
+      threadId: string
+      name?: string
+      tabOrder?: number
     }) => {
-      const data = await apiFetch<StartThreadResponse>(
-        `/projects/${projectId}/threads`,
+      const data = await apiFetch<ThreadResponseEnvelope>(
+        `/threads/${threadId}`,
         {
-          method: 'POST',
-          body: JSON.stringify({ text })
+          method: 'PATCH',
+          body: JSON.stringify(patch)
         }
       )
 
       return data.thread
     },
     onSuccess: (thread) => {
-      queryClient.setQueryData<ThreadResponse | null>(threadKey(thread.id), {
-        thread,
-        events: []
+      queryClient.setQueryData<ThreadResponse | null>(
+        threadKey(thread.id),
+        (previous) =>
+          previous ? { ...previous, thread } : previous
+      )
+
+      void queryClient.invalidateQueries({ queryKey: threadsKey })
+    }
+  })
+}
+
+export function useCloseThreadMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (threadId: string) => {
+      await apiFetch<{ ok: boolean }>(`/threads/${threadId}`, {
+        method: 'DELETE'
       })
 
-      if (thread.projectId) {
-        void queryClient.invalidateQueries({
-          queryKey: projectThreadsKey(thread.projectId)
+      return threadId
+    },
+    onSuccess: (threadId) => {
+      // Closed threads can never come back, so drop their persisted draft
+      // to keep localStorage tidy.
+      clearDraftStorage(threadId)
+
+      void queryClient.invalidateQueries({ queryKey: threadsKey })
+    }
+  })
+}
+
+export function useCancelThreadMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (threadId: string) => {
+      await apiFetch<{ ok: boolean }>(`/threads/${threadId}/cancel`, {
+        method: 'POST'
+      })
+
+      return threadId
+    },
+    onMutate: async (threadId) => {
+      await queryClient.cancelQueries({ queryKey: threadKey(threadId) })
+
+      const previous = queryClient.getQueryData<ThreadResponse | null>(
+        threadKey(threadId)
+      )
+
+      if (previous?.thread) {
+        queryClient.setQueryData<ThreadResponse | null>(threadKey(threadId), {
+          ...previous,
+          thread: {
+            ...previous.thread,
+            status: 'idle',
+            errorMessage: null
+          }
         })
+      }
+
+      return { previous }
+    },
+    onError: (_error, threadId, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(threadKey(threadId), context.previous)
       }
     }
   })
 }
+
+export type ComposerMode = 'code' | 'plan'
 
 export function useSendMessageMutation() {
   const queryClient = useQueryClient()
@@ -321,20 +392,18 @@ export function useSendMessageMutation() {
   return useMutation({
     mutationFn: async ({
       threadId,
-      text
+      text,
+      mode
     }: {
       threadId: string
       text: string
+      mode?: ComposerMode
     }) => {
       await apiFetch<{ ok: boolean }>(`/threads/${threadId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ text })
+        body: JSON.stringify(mode ? { text, mode } : { text })
       })
     },
-    // The server flips thread.status to 'running' when it picks the message up,
-    // but doesn't broadcast that change — only the user_message event streams
-    // back. Without this optimistic update the transcript's "Working…" row and
-    // the header StatePill stay stale until the agent emits its first item.
     onMutate: async ({ threadId }) => {
       await queryClient.cancelQueries({ queryKey: threadKey(threadId) })
 
@@ -355,30 +424,6 @@ export function useSendMessageMutation() {
       if (context?.previous !== undefined) {
         queryClient.setQueryData(threadKey(threadId), context.previous)
       }
-    }
-  })
-}
-
-type MergeResponse = {
-  merge: { mergeCommitSha: string | null; autoCommitted: boolean }
-}
-
-export function useMergeTaskMutation() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (taskId: string) => {
-      const data = await apiFetch<MergeResponse>(`/tasks/${taskId}/merge`, {
-        method: 'POST'
-      })
-
-      return { taskId, ...data.merge }
-    },
-    onSuccess: ({ taskId }) => {
-      void queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
-      void queryClient.invalidateQueries({
-        queryKey: taskThreadsKey(taskId)
-      })
     }
   })
 }

@@ -542,10 +542,12 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
 
 export function AgentTranscript({
   events,
-  thread = null
+  thread = null,
+  cancelRequested = false
 }: {
   events: ThreadEvent[]
   thread?: Thread | null
+  cancelRequested?: boolean
 }) {
   if (events.length === 0) {
     return (
@@ -558,8 +560,9 @@ export function AgentTranscript({
   }
 
   const nodes = buildNodes(events)
-  const running =
+  const serverRunning =
     thread?.status === 'running' || thread?.status === 'starting'
+  const running = serverRunning && !cancelRequested
 
   return (
     <div className='flex flex-col gap-2.5'>
@@ -764,6 +767,11 @@ function ActivityStrip({
     .map(([tool, n]) => `${n} ${labels[tool] ?? tool}${n > 1 ? 's' : ''}`)
     .join(' · ')
 
+  const latestStep = steps.at(-1) ?? null
+  const latestPreview = latestStep
+    ? [latestStep.label, latestStep.detail].filter(Boolean).join(' ')
+    : ''
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
@@ -790,7 +798,7 @@ function ActivityStrip({
           {running ? 'Working' : 'Activity'}
         </span>
         <span className='text-[color:var(--fg-4)]'>·</span>
-        <span className='truncate text-[color:var(--fg-3)]'>
+        <span className='shrink-0 text-[color:var(--fg-3)]'>
           {summary}
           {failed > 0 ? (
             <span className='ml-1 text-[color:var(--destructive)]'>
@@ -798,6 +806,19 @@ function ActivityStrip({
             </span>
           ) : null}
         </span>
+        {latestPreview ? (
+          <>
+            <span className='text-[color:var(--fg-4)]'>·</span>
+            <span
+              className='min-w-0 flex-1 truncate font-mono text-[11.5px] text-[color:var(--fg-3)]'
+              title={latestPreview}
+            >
+              {latestPreview}
+            </span>
+          </>
+        ) : (
+          <span className='min-w-0 flex-1' />
+        )}
 
         <span className='ml-2 inline-flex items-center gap-1'>
           {steps.slice(0, 6).map((step) => {

@@ -10,12 +10,14 @@ import {
 } from '../test-utils'
 import {
   threadKey,
-  useMergeTaskMutation,
+  threadsKey,
+  useCloseThreadMutation,
+  useCreateThreadMutation,
   useSendMessageMutation,
-  useStartThreadMutation,
-  useTaskThreadsQuery,
   useThreadQuery,
   useThreadStream,
+  useThreadsQuery,
+  useUpdateThreadMutation,
   type Thread,
   type ThreadEvent
 } from './use-thread'
@@ -72,14 +74,14 @@ const installMockEventSource = () => {
 
 const buildThread = (overrides: Partial<Thread> = {}): Thread => ({
   id: 'thread-1',
-  taskId: 'task-1',
-  projectId: null,
-  codexThreadId: null,
-  worktreePath: '/tmp/wt',
-  branchName: 'code-monkey/abc',
-  baseBranch: 'main',
-  status: 'running',
+  name: 'project',
+  directoryPath: '/tmp/project',
+  provider: 'claude-code',
+  externalThreadId: null,
+  status: 'idle',
   errorMessage: null,
+  tabOrder: 0,
+  closedAt: null,
   createdAt: new Date(0).toISOString(),
   lastActivityAt: new Date(0).toISOString(),
   ...overrides
@@ -109,6 +111,32 @@ const wrapper = (client: QueryClient) => {
 
   return Wrapper
 }
+
+describe('useThreadsQuery', () => {
+  beforeEach(() => {
+    mockApiBridge()
+  })
+
+  afterEach(() => {
+    restoreApiBridge()
+    vi.unstubAllGlobals()
+  })
+
+  test('fetches the list of threads', async () => {
+    const threads = [buildThread({ id: 'a' }), buildThread({ id: 'b' })]
+
+    mockFetchJson({ '/threads': { threads } })
+
+    const client = createClient()
+    const { result } = renderHook(() => useThreadsQuery(), {
+      wrapper: wrapper(client)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toEqual(true))
+
+    expect(result.current.data).toEqual(threads)
+  })
+})
 
 describe('useThreadQuery', () => {
   beforeEach(() => {
@@ -179,7 +207,9 @@ describe('useThreadStream', () => {
 
     const source = instances.at(0)
 
-    if (!source) throw new Error('EventSource was not created')
+    if (!source) {
+      throw new Error('EventSource was not created')
+    }
 
     expect(source.url).toMatch(/\/threads\/thread-1\/stream$/)
 
@@ -224,7 +254,9 @@ describe('useThreadStream', () => {
 
     const source = instances.at(0)
 
-    if (!source) throw new Error('EventSource was not created')
+    if (!source) {
+      throw new Error('EventSource was not created')
+    }
 
     act(() => {
       source.emit(
@@ -251,7 +283,7 @@ describe('useThreadStream', () => {
   })
 })
 
-describe('useStartThreadMutation', () => {
+describe('useCreateThreadMutation', () => {
   beforeEach(() => {
     mockApiBridge()
   })
@@ -261,40 +293,43 @@ describe('useStartThreadMutation', () => {
     vi.unstubAllGlobals()
   })
 
-  test('POSTs to /tasks/:id/threads and seeds the cache', async () => {
-    const thread = buildThread()
+  test('POSTs to /threads and seeds the cache', async () => {
+    const thread = buildThread({ id: 'new', directoryPath: '/Users/x/site' })
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input.toString()
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString()
 
-      if (url.endsWith('/tasks/task-1/threads') && init?.method === 'POST') {
-        return new Response(JSON.stringify({ thread }), {
-          status: 201,
-          headers: { 'Content-Type': 'application/json' }
-        })
+        if (url.endsWith('/threads') && init?.method === 'POST') {
+          return new Response(JSON.stringify({ thread }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+
+        return new Response('nope', { status: 404 })
       }
-
-      return new Response('nope', { status: 404 })
-    })
+    )
 
     vi.stubGlobal('fetch', fetchMock)
 
     const client = createClient()
-    const { result } = renderHook(() => useStartThreadMutation(), {
+    const { result } = renderHook(() => useCreateThreadMutation(), {
       wrapper: wrapper(client)
     })
 
     await act(async () => {
-      await result.current.mutateAsync('task-1')
+      await result.current.mutateAsync({ directoryPath: '/Users/x/site' })
     })
 
-    expect(
-      client.getQueryData(threadKey(thread.id))
-    ).toEqual({ thread, events: [] })
+    expect(client.getQueryData(threadKey(thread.id))).toEqual({
+      thread,
+      events: []
+    })
   })
 })
 
-describe('useTaskThreadsQuery', () => {
+describe('useUpdateThreadMutation', () => {
   beforeEach(() => {
     mockApiBridge()
   })
@@ -304,36 +339,78 @@ describe('useTaskThreadsQuery', () => {
     vi.unstubAllGlobals()
   })
 
-  test('returns the threads for a task', async () => {
-    const threads = [
-      buildThread({ id: 'a' }),
-      buildThread({ id: 'b' })
-    ]
+  test('PATCHes /threads/:id with the patch body', async () => {
+    const thread = buildThread({ name: 'renamed' })
 
-    mockFetchJson({ '/tasks/task-1/threads': { threads } })
-
-    const client = createClient()
-    const { result } = renderHook(() => useTaskThreadsQuery('task-1'), {
-      wrapper: wrapper(client)
-    })
-
-    await waitFor(() => expect(result.current.isSuccess).toEqual(true))
-
-    expect(result.current.data).toEqual(threads)
-  })
-
-  test('is disabled when taskId is undefined', () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ thread }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    )
 
     vi.stubGlobal('fetch', fetchMock)
 
     const client = createClient()
-
-    renderHook(() => useTaskThreadsQuery(undefined), {
+    const { result } = renderHook(() => useUpdateThreadMutation(), {
       wrapper: wrapper(client)
     })
 
-    expect(fetchMock).not.toHaveBeenCalled()
+    await act(async () => {
+      await result.current.mutateAsync({
+        threadId: 'thread-1',
+        name: 'renamed'
+      })
+    })
+
+    const [call] = fetchMock.mock.calls
+    const url = call?.at(0) as string | undefined
+    const init = call?.at(1) as RequestInit | undefined
+
+    expect(url).toContain('/threads/thread-1')
+    expect(init?.method).toEqual('PATCH')
+    expect(init?.body).toEqual(JSON.stringify({ name: 'renamed' }))
+  })
+})
+
+describe('useCloseThreadMutation', () => {
+  beforeEach(() => {
+    mockApiBridge()
+  })
+
+  afterEach(() => {
+    restoreApiBridge()
+    vi.unstubAllGlobals()
+  })
+
+  test('DELETEs /threads/:id and invalidates the list', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    )
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = createClient()
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries')
+
+    const { result } = renderHook(() => useCloseThreadMutation(), {
+      wrapper: wrapper(client)
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync('thread-1')
+    })
+
+    const [call] = fetchMock.mock.calls
+    const url = call?.at(0) as string | undefined
+    const init = call?.at(1) as RequestInit | undefined
+
+    expect(url).toContain('/threads/thread-1')
+    expect(init?.method).toEqual('DELETE')
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: threadsKey })
   })
 })
 
@@ -376,48 +453,5 @@ describe('useSendMessageMutation', () => {
     expect(url).toContain('/threads/thread-1/messages')
     expect(init?.method).toEqual('POST')
     expect(init?.body).toEqual(JSON.stringify({ text: 'keep going' }))
-  })
-})
-
-describe('useMergeTaskMutation', () => {
-  beforeEach(() => {
-    mockApiBridge()
-  })
-
-  afterEach(() => {
-    restoreApiBridge()
-    vi.unstubAllGlobals()
-  })
-
-  test('POSTs to /tasks/:taskId/merge', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          merge: { mergeCommitSha: 'deadbeef', autoCommitted: false }
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      )
-    )
-
-    vi.stubGlobal('fetch', fetchMock)
-
-    const client = createClient()
-    const { result } = renderHook(() => useMergeTaskMutation(), {
-      wrapper: wrapper(client)
-    })
-
-    await act(async () => {
-      await result.current.mutateAsync('task-1')
-    })
-
-    const [call] = fetchMock.mock.calls
-    const url = call?.at(0) as string | undefined
-    const init = call?.at(1) as RequestInit | undefined
-
-    expect(url).toContain('/tasks/task-1/merge')
-    expect(init?.method).toEqual('POST')
   })
 })

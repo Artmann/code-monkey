@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server'
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
@@ -8,22 +8,18 @@ import { secureHeaders } from 'hono/secure-headers'
 
 import type {
   AgentRunner,
-  PersistedEvent,
-  TaskStateEvent
+  PersistedEvent
 } from '../codex/agent-runner'
 import type { EventBroker } from '../codex/event-broker'
 import type { SafeStorageLike } from '../codex/provider-settings'
 import * as schema from '../database/schema'
-import { projectsRoutes } from './routes/projects'
 import { createSettingsRoutes } from './routes/settings'
-import { createTasksRoutes } from './routes/tasks'
 import { createThreadsRoutes } from './routes/threads'
 
 export type ApiServerDependencies = {
-  database: BetterSQLite3Database<typeof schema>
+  database: LibSQLDatabase<typeof schema>
   safeStorage: SafeStorageLike
   broker: EventBroker<PersistedEvent>
-  taskStateBroker: EventBroker<TaskStateEvent>
   runner: AgentRunner
 }
 
@@ -47,8 +43,6 @@ export async function startApiServer(
   )
 
   app.get('/health', (context) => context.json({ ok: true }))
-  app.route('/projects', projectsRoutes)
-  app.route('/tasks', createTasksRoutes(dependencies))
   app.route('/settings', createSettingsRoutes(dependencies))
   app.route('/', createThreadsRoutes(dependencies))
 

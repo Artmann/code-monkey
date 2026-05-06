@@ -76,12 +76,6 @@ return json(data)
 - Run `pnpm lint` and `pnpm typecheck` before declaring work complete.
 - Run `pnpm test:run` to execute the test suite once (use `pnpm test` for watch
   mode).
-- Run `pnpm task:inspect <task-id-or-prefix>` to dump a task and its threads
-  from the local SQLite database (`~/.code-monkey/code-monkey.db`). Useful for
-  diagnosing stuck or blocked tasks. Accepts either a full task id or a unique
-  prefix and prints the project, task, threads, event counts, and the 10 most
-  recent thread events as JSON. Requires better-sqlite3 to be built for the
-  Node ABI (re-run after a Node version change).
 
 ## Browser automation (agent-browser)
 

@@ -1,32 +1,24 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { createClient } from '@libsql/client'
+import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
+
 import { getDatabasePath } from './paths'
 import * as schema from './schema'
 
-type DatabaseClient = ReturnType<typeof drizzle<typeof schema>>
+type DatabaseClient = LibSQLDatabase<typeof schema>
 
 let cachedDatabase: DatabaseClient | null = null
-let cachedSqlite: Database.Database | null = null
 
-export function getDatabase(): DatabaseClient {
+export async function getDatabase(): Promise<DatabaseClient> {
   if (cachedDatabase) {
     return cachedDatabase
   }
 
-  const sqlite = new Database(getDatabasePath())
-  sqlite.pragma('journal_mode = WAL')
-  sqlite.pragma('foreign_keys = ON')
+  const client = createClient({ url: `file:${getDatabasePath()}` })
 
-  cachedSqlite = sqlite
-  cachedDatabase = drizzle(sqlite, { schema })
+  await client.execute('PRAGMA journal_mode = WAL')
+  await client.execute('PRAGMA foreign_keys = ON')
+
+  cachedDatabase = drizzle(client, { schema })
 
   return cachedDatabase
-}
-
-export function getSqliteHandle(): Database.Database {
-  if (!cachedSqlite) {
-    getDatabase()
-  }
-
-  return cachedSqlite as Database.Database
 }

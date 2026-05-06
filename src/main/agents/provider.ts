@@ -5,10 +5,12 @@ export type ProviderKind = 'codex' | 'claude-code'
 //   full-access      — bypass all prompts (SDK runs every tool unattended)
 //   approval-required — every non-allowlisted tool waits for the user
 //   auto-accept-edits — file writes auto-allowed; other tools still prompt
+//   plan              — SDK plan mode: agent plans without executing tools
 export type RuntimeMode =
   | 'approval-required'
   | 'auto-accept-edits'
   | 'full-access'
+  | 'plan'
 
 export type RequestKind =
   | 'command'
@@ -95,9 +97,16 @@ export type NormalizedEvent = {
   usage?: unknown
 }
 
+export type RunStreamedOptions = {
+  abortSignal?: AbortSignal
+}
+
 export type AgentThread = {
   readonly id: string | null
-  runStreamed: (input: string) => Promise<{
+  runStreamed: (
+    input: string,
+    options?: RunStreamedOptions
+  ) => Promise<{
     events: AsyncIterable<NormalizedEvent>
   }>
 }
