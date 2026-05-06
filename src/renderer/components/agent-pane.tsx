@@ -23,7 +23,11 @@ import {
   type ApprovalDecisionShape
 } from './agent-transcript'
 import { Button } from './ui/button'
-import { Textarea } from './ui/textarea'
+import {
+  RichComposer,
+  type RichComposerHandle,
+  type RichComposerSnapshot
+} from './ui/rich-composer'
 
 export type AgentPaneProps = {
   thread: Thread
@@ -134,22 +138,26 @@ const Composer = ({
 }) => {
   const draft = useDraft(threadId)
   const { text, setText, clear: clearDraft } = draft
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const composerRef = useRef<RichComposerHandle>(null)
+  // Track the live snapshot so we can drive submit-button enablement and the
+  // "image present" notice without re-rendering on every keystroke. The
+  // RichComposer itself is uncontrolled — these mirrors are read-only.
+  const [snapshot, setSnapshot] = useState<RichComposerSnapshot>({
+    text,
+    imageCount: 0
+  })
 
   // Focus the prompt on mount and whenever the active thread changes (tab
   // switch, refresh, app start). The cursor is moved to the end so the user
-  // can keep typing a restored draft without re-clicking into the textarea.
+  // can keep typing a restored draft without re-clicking into the editor.
   useEffect(() => {
-    const element = textareaRef.current
+    const handle = composerRef.current
 
-    if (!element || disabled) {
+    if (!handle || disabled) {
       return
     }
 
-    element.focus()
-
-    const length = element.value.length
-    element.setSelectionRange(length, length)
+    handle.focus()
   }, [threadId, disabled])
 
   const submit = () => {
@@ -159,17 +167,26 @@ const Composer = ({
       return
     }
 
-    const value = text.trim()
+    const value = (composerRef.current?.getSnapshot().text ?? text).trim()
 
     if (!value || disabled) {
       return
     }
 
     onSend(value)
+    composerRef.current?.clear()
     clearDraft()
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+  const handleComposerChange = (next: RichComposerSnapshot) => {
+    setSnapshot(next)
+    // Persist only the text portion of the draft. Pasted images live in
+    // editor DOM state and are intentionally not stored — drafts are
+    // best-effort and we don't want to bloat localStorage with blob data.
+    setText(next.text)
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape' && isRunning) {
       event.preventDefault()
       onStop?.()
@@ -211,6 +228,9 @@ const Composer = ({
     }
   }, [isRunning, onStop])
 
+  const hasText = snapshot.text.trim().length > 0
+  const hasImages = snapshot.imageCount > 0
+
   return (
     <form
       onSubmit={(event) => {
@@ -221,18 +241,28 @@ const Composer = ({
         'mx-auto flex w-full max-w-[760px] flex-col gap-1 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-1 shadow-[var(--shadow-1)]'
       )}
     >
-      <Textarea
-        ref={textareaRef}
+      <RichComposer
+        ref={composerRef}
+        // Re-mount the editor when switching threads so the new draft hydrates
+        // cleanly without React fighting the contenteditable DOM state.
+        key={threadId}
+        ariaLabel='Message composer'
         placeholder='Tell the agent what to do…'
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={onKeyDown}
+        initialText={text}
         disabled={disabled}
-        rows={2}
+        onChange={handleComposerChange}
+        onKeyDown={onKeyDown}
         className={cn(
-          'min-h-[44px] max-h-40 resize-none border-0 bg-transparent px-2.5 py-2 text-[13px] text-[color:var(--fg)] shadow-none placeholder:text-[color:var(--fg-4)] focus-visible:ring-0'
+          'min-h-[44px] max-h-40 overflow-y-auto px-2.5 py-2 text-[13px] text-[color:var(--fg)] outline-none'
         )}
       />
+      {hasImages ? (
+        <p className='px-2.5 pt-0.5 text-[11px] text-[color:var(--fg-3)]'>
+          {snapshot.imageCount === 1
+            ? '1 image attached — only the text portion will be sent for now.'
+            : `${snapshot.imageCount} images attached — only the text portion will be sent for now.`}
+        </p>
+      ) : null}
       <div className='flex items-center justify-between gap-2 px-1.5 pb-1 pt-0'>
         <div className='flex items-center gap-1.5'>
           <ModeToggle
@@ -270,7 +300,7 @@ const Composer = ({
             <Button
               type='submit'
               size='sm'
-              disabled={disabled || text.trim() === ''}
+              disabled={disabled || !hasText}
               className='h-7 gap-1.5 px-2.5 text-[12px]'
             >
               <span>Send</span>

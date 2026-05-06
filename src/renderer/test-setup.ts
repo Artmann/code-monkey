@@ -51,6 +51,22 @@ if (typeof window !== 'undefined') {
     window.HTMLElement.prototype.scrollTo = () => undefined
   }
 
+  // jsdom omits URL.createObjectURL / revokeObjectURL. The rich composer mints
+  // blob URLs for inline image previews; tests just need the calls to succeed.
+  if (typeof URL.createObjectURL !== 'function') {
+    let counter = 0
+
+    URL.createObjectURL = (() => {
+      counter += 1
+
+      return `blob:mock/${counter}`
+    }) as typeof URL.createObjectURL
+  }
+
+  if (typeof URL.revokeObjectURL !== 'function') {
+    URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+  }
+
   // jsdom doesn't ship EventSource. Components subscribing to SSE during a
   // test only need it to construct without throwing — no events are pushed.
   if (!('EventSource' in window)) {
