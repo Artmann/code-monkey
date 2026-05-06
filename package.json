@@ -10,7 +10,6 @@
   "files": [
     "bin",
     "dist",
-    "scripts/postinstall.mjs",
     "README.md",
     "LICENSE"
   ],
@@ -21,12 +20,10 @@
     "lint": "eslint --ext .ts,.tsx src",
     "make": "electron-forge make",
     "package": "electron-forge package",
-    "postinstall": "node scripts/postinstall.mjs",
     "prepack": "pnpm build:npm",
     "release": "pnpm build && electron-forge publish",
     "start": "electron-forge start",
     "start:debug": "cross-env CODE_MONKEY_DEBUG=1 electron-forge start",
-    "task:inspect": "node scripts/task-inspect.mjs",
     "test:run": "vitest run",
     "test": "vitest",
     "typecheck": "tsc --noEmit"
@@ -54,7 +51,6 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
-      "better-sqlite3",
       "esbuild",
       "electron-winstaller"
     ]
@@ -75,7 +71,6 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -103,14 +98,13 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@electron/rebuild": "^3.7.0",
     "@emotion/is-prop-valid": "^1.4.0",
     "@hono/node-server": "^1.19.14",
     "@hono/zod-validator": "^0.7.6",
+    "@libsql/client": "^0.17.3",
     "@openai/codex-sdk": "^0.121.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^5.99.0",
-    "better-sqlite3": "^12.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.20",

@@ -1,8 +1,10 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { resolve } from 'node:path'
-import { beforeEach, describe, expect, test } from 'vitest'
+import { createClient } from '@libsql/client'
+import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
+import { migrate } from 'drizzle-orm/libsql/migrator'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import * as schema from '../database/schema'
 import {
@@ -13,7 +15,7 @@ import {
   type SafeStorageLike
 } from './provider-settings'
 
-type TestDatabase = ReturnType<typeof drizzle<typeof schema>>
+type TestDatabase = LibSQLDatabase<typeof schema>
 
 const migrationsFolder = resolve(__dirname, '..', 'database', 'migrations')
 
@@ -32,13 +34,16 @@ const createFakeSafeStorage = (available = true): SafeStorageLike => ({
   }
 })
 
-const createTestDatabase = (): TestDatabase => {
-  const sqlite = new Database(':memory:')
-  sqlite.pragma('foreign_keys = ON')
+const createTestDatabase = async (
+  databaseFilePath: string
+): Promise<TestDatabase> => {
+  const client = createClient({ url: `file:${databaseFilePath}` })
 
-  const database = drizzle(sqlite, { schema })
+  await client.execute('PRAGMA foreign_keys = ON')
 
-  migrate(database, { migrationsFolder })
+  const database = drizzle(client, { schema })
+
+  await migrate(database, { migrationsFolder })
 
   return database
 }
@@ -46,81 +51,90 @@ const createTestDatabase = (): TestDatabase => {
 describe('provider-settings', () => {
   let database: TestDatabase
   let safeStorage: SafeStorageLike
+  let temporaryDirectory: string
 
-  beforeEach(() => {
-    database = createTestDatabase()
+  beforeEach(async () => {
+    temporaryDirectory = mkdtempSync(join(tmpdir(), 'code-monkey-test-'))
+
+    database = await createTestDatabase(join(temporaryDirectory, 'test.db'))
     safeStorage = createFakeSafeStorage()
   })
 
-  test('returns null when nothing is configured', () => {
-    expect(getProviderSettings({ database, safeStorage })).toEqual(null)
-    expect(getProviderSettingsSummary({ database, safeStorage })).toEqual(null)
+  afterEach(() => {
+    rmSync(temporaryDirectory, { recursive: true, force: true })
   })
 
-  test('persists Codex CLI mode with a binary path', () => {
-    setProviderSettings(
+  test('returns null when nothing is configured', async () => {
+    expect(await getProviderSettings({ database, safeStorage })).toEqual(null)
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual(
+      null
+    )
+  })
+
+  test('persists Codex CLI mode with a binary path', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'cli', binaryPath: '/usr/local/bin/codex' }
     )
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'codex',
       mode: 'cli',
       binaryPath: '/usr/local/bin/codex'
     })
-    expect(getProviderSettingsSummary({ database, safeStorage })).toEqual({
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
       kind: 'codex',
       mode: 'cli',
       binaryPath: '/usr/local/bin/codex'
     })
   })
 
-  test('persists Codex CLI mode without a binary path', () => {
-    setProviderSettings(
+  test('persists Codex CLI mode without a binary path', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'cli' }
     )
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'codex',
       mode: 'cli',
       binaryPath: null
     })
   })
 
-  test('persists Codex API mode with an encrypted key', () => {
-    setProviderSettings(
+  test('persists Codex API mode with an encrypted key', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'api', apiKey: 'sk-secret' }
     )
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'codex',
       mode: 'api',
       apiKey: 'sk-secret'
     })
   })
 
-  test('summary for Codex API mode reports the key is stored without exposing it', () => {
-    setProviderSettings(
+  test('summary for Codex API mode reports the key is stored without exposing it', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'api', apiKey: 'sk-secret' }
     )
 
-    expect(getProviderSettingsSummary({ database, safeStorage })).toEqual({
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
       kind: 'codex',
       mode: 'api',
       hasApiKey: true
     })
   })
 
-  test('raw DB value for the Codex API key is encrypted, not plaintext', () => {
-    setProviderSettings(
+  test('raw DB value for the Codex API key is encrypted, not plaintext', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'api', apiKey: 'sk-secret' }
     )
 
-    const rows = database.select().from(schema.settings).all()
+    const rows = await database.select().from(schema.settings).all()
     const apiKeyRow = rows.find(
       (row) => row.key === 'provider.codex.apiKeyEncrypted'
     )
@@ -129,34 +143,34 @@ describe('provider-settings', () => {
     expect(apiKeyRow?.value).not.toContain('sk-secret')
   })
 
-  test('switching modes replaces prior keys', () => {
-    setProviderSettings(
+  test('switching modes replaces prior keys', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'api', apiKey: 'sk-first' }
     )
-    setProviderSettings(
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'cli', binaryPath: '/usr/bin/codex' }
     )
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'codex',
       mode: 'cli',
       binaryPath: '/usr/bin/codex'
     })
-    expect(getProviderSettingsSummary({ database, safeStorage })).toEqual({
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
       kind: 'codex',
       mode: 'cli',
       binaryPath: '/usr/bin/codex'
     })
   })
 
-  test('switching kind clears the previous provider data', () => {
-    setProviderSettings(
+  test('switching kind clears the previous provider data', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'cli', binaryPath: '/usr/bin/codex' }
     )
-    setProviderSettings(
+    await setProviderSettings(
       { database, safeStorage },
       {
         kind: 'claude-code',
@@ -165,13 +179,13 @@ describe('provider-settings', () => {
       }
     )
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'claude-code',
       mode: 'cli',
       executablePath: '/usr/bin/claude'
     })
 
-    const rows = database.select().from(schema.settings).all()
+    const rows = await database.select().from(schema.settings).all()
 
     expect(rows.find((row) => row.key === 'provider.codex.mode')).toBeUndefined()
     expect(
@@ -179,8 +193,8 @@ describe('provider-settings', () => {
     ).toBeUndefined()
   })
 
-  test('persists Claude Code CLI mode with an executable path', () => {
-    setProviderSettings(
+  test('persists Claude Code CLI mode with an executable path', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       {
         kind: 'claude-code',
@@ -189,33 +203,33 @@ describe('provider-settings', () => {
       }
     )
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'claude-code',
       mode: 'cli',
       executablePath: '/opt/claude/bin/claude'
     })
-    expect(getProviderSettingsSummary({ database, safeStorage })).toEqual({
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
       kind: 'claude-code',
       mode: 'cli',
       executablePath: '/opt/claude/bin/claude'
     })
   })
 
-  test('persists Claude Code CLI mode without an executable path', () => {
-    setProviderSettings(
+  test('persists Claude Code CLI mode without an executable path', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'claude-code', mode: 'cli' }
     )
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'claude-code',
       mode: 'cli',
       executablePath: null
     })
   })
 
-  test('persists Claude Code API mode with an encrypted key', () => {
-    setProviderSettings(
+  test('persists Claude Code API mode with an encrypted key', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       {
         kind: 'claude-code',
@@ -224,18 +238,18 @@ describe('provider-settings', () => {
       }
     )
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'claude-code',
       mode: 'api',
       apiKey: 'sk-ant-secret'
     })
-    expect(getProviderSettingsSummary({ database, safeStorage })).toEqual({
+    expect(await getProviderSettingsSummary({ database, safeStorage })).toEqual({
       kind: 'claude-code',
       mode: 'api',
       hasApiKey: true
     })
 
-    const rows = database.select().from(schema.settings).all()
+    const rows = await database.select().from(schema.settings).all()
     const apiKeyRow = rows.find(
       (row) => row.key === 'provider.claude-code.apiKeyEncrypted'
     )
@@ -244,55 +258,55 @@ describe('provider-settings', () => {
     expect(apiKeyRow?.value).not.toContain('sk-ant-secret')
   })
 
-  test('clearProviderSettings removes all provider rows', () => {
-    setProviderSettings(
+  test('clearProviderSettings removes all provider rows', async () => {
+    await setProviderSettings(
       { database, safeStorage },
       { kind: 'codex', mode: 'api', apiKey: 'sk-x' }
     )
 
-    clearProviderSettings({ database, safeStorage })
+    await clearProviderSettings({ database, safeStorage })
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual(null)
+    expect(await getProviderSettings({ database, safeStorage })).toEqual(null)
   })
 
-  test('refuses to save an API key when encryption is unavailable', () => {
+  test('refuses to save an API key when encryption is unavailable', async () => {
     const unavailable = createFakeSafeStorage(false)
 
-    expect(() =>
+    await expect(
       setProviderSettings(
         { database, safeStorage: unavailable },
         { kind: 'codex', mode: 'api', apiKey: 'sk-x' }
       )
-    ).toThrow(/encryption is not available/i)
+    ).rejects.toThrow(/encryption is not available/i)
 
-    expect(() =>
+    await expect(
       setProviderSettings(
         { database, safeStorage: unavailable },
         { kind: 'claude-code', mode: 'api', apiKey: 'sk-ant-x' }
       )
-    ).toThrow(/encryption is not available/i)
+    ).rejects.toThrow(/encryption is not available/i)
   })
 
-  test('allows CLI mode even when encryption is unavailable', () => {
+  test('allows CLI mode even when encryption is unavailable', async () => {
     const unavailable = createFakeSafeStorage(false)
 
-    expect(() =>
+    await expect(
       setProviderSettings(
         { database, safeStorage: unavailable },
         { kind: 'codex', mode: 'cli' }
       )
-    ).not.toThrow()
+    ).resolves.not.toThrow()
 
-    expect(() =>
+    await expect(
       setProviderSettings(
         { database, safeStorage: unavailable },
         { kind: 'claude-code', mode: 'cli' }
       )
-    ).not.toThrow()
+    ).resolves.not.toThrow()
   })
 
-  test('reads legacy Codex settings without provider.kind as kind=codex', () => {
-    database
+  test('reads legacy Codex settings without provider.kind as kind=codex', async () => {
+    await database
       .insert(schema.settings)
       .values([
         { key: 'provider.codex.mode', value: 'cli', updatedAt: new Date() },
@@ -304,7 +318,7 @@ describe('provider-settings', () => {
       ])
       .run()
 
-    expect(getProviderSettings({ database, safeStorage })).toEqual({
+    expect(await getProviderSettings({ database, safeStorage })).toEqual({
       kind: 'codex',
       mode: 'cli',
       binaryPath: '/usr/bin/codex'

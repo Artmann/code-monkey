@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -70,7 +70,7 @@ const toProviderSettingsInput = (body: ProviderBody): ProviderSettingsInput => {
 }
 
 export type SettingsRoutesDependencies = {
-  database: BetterSQLite3Database<typeof schema>
+  database: LibSQLDatabase<typeof schema>
   safeStorage: SafeStorageLike
 }
 
@@ -79,18 +79,18 @@ export const createSettingsRoutes = (
 ) => {
   const routes = new Hono()
 
-  routes.get('/provider', (context) =>
-    context.json({ provider: getProviderSettingsSummary(dependencies) })
+  routes.get('/provider', async (context) =>
+    context.json({ provider: await getProviderSettingsSummary(dependencies) })
   )
 
   routes.post(
     '/provider',
     zValidator('json', providerBodySchema),
-    (context) => {
+    async (context) => {
       const body = context.req.valid('json')
 
       try {
-        setProviderSettings(dependencies, toProviderSettingsInput(body))
+        await setProviderSettings(dependencies, toProviderSettingsInput(body))
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
@@ -98,13 +98,13 @@ export const createSettingsRoutes = (
       }
 
       return context.json({
-        provider: getProviderSettingsSummary(dependencies)
+        provider: await getProviderSettingsSummary(dependencies)
       })
     }
   )
 
-  routes.delete('/provider', (context) => {
-    clearProviderSettings(dependencies)
+  routes.delete('/provider', async (context) => {
+    await clearProviderSettings(dependencies)
 
     return context.json({ ok: true })
   })

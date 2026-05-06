@@ -44,6 +44,8 @@ type CanUseTool = (
   context: unknown
 ) => Promise<CanUseToolResponse>
 
+type SettingSource = 'user' | 'project' | 'local'
+
 type QueryOptions = {
   cwd?: string
   model?: string
@@ -53,6 +55,7 @@ type QueryOptions = {
   env?: Record<string, string>
   abortController?: AbortController
   canUseTool?: CanUseTool
+  settingSources?: SettingSource[]
 }
 
 type QueryInput = {
@@ -103,6 +106,10 @@ const permissionModeFor = (
 
   if (runtimeMode === 'auto-accept-edits') {
     return 'acceptEdits'
+  }
+
+  if (runtimeMode === 'plan') {
+    return 'plan'
   }
 
   // 'approval-required' or unset: stay in default so the SDK routes tool
@@ -511,6 +518,7 @@ export const createClaudeCodeProvider = async (
       ? { cwd: threadOptions.workingDirectory }
       : {}),
     permissionMode: permissionModeFor(threadOptions?.runtimeMode),
+    settingSources: [],
     ...(pathToClaudeCodeExecutable
       ? { pathToClaudeCodeExecutable }
       : {}),
@@ -527,7 +535,7 @@ export const createClaudeCodeProvider = async (
       get id() {
         return currentSessionId
       },
-      runStreamed: async (input: string) => {
+      runStreamed: async (input, runOptions) => {
         const eventChannel = createChannel<NormalizedEvent>()
         const onApprovalRequest = threadOptions?.onApprovalRequest
         const onUserInputRequest = threadOptions?.onUserInputRequest
@@ -538,9 +546,25 @@ export const createClaudeCodeProvider = async (
         const shouldRegisterCanUseTool =
           onApprovalRequest != null || onUserInputRequest != null
 
+        const abortSignal = runOptions?.abortSignal
+        const abortController = abortSignal ? new AbortController() : undefined
+
+        if (abortController && abortSignal) {
+          if (abortSignal.aborted) {
+            abortController.abort()
+          } else {
+            abortSignal.addEventListener(
+              'abort',
+              () => abortController.abort(),
+              { once: true }
+            )
+          }
+        }
+
         const options: QueryOptions = {
           ...baseOptions(threadOptions),
           ...(currentSessionId ? { resume: currentSessionId } : {}),
+          ...(abortController ? { abortController } : {}),
           ...(shouldRegisterCanUseTool
             ? {
                 canUseTool: buildCanUseTool({
@@ -602,6 +626,7 @@ export const createClaudeCodeProvider = async (
     const options: QueryOptions = {
       cwd: input.workingDirectory,
       permissionMode: 'plan',
+      settingSources: [],
       ...(pathToClaudeCodeExecutable
         ? { pathToClaudeCodeExecutable }
         : {}),

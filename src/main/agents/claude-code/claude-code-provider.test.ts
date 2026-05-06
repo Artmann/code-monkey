@@ -150,7 +150,8 @@ describe('claude-code provider runtimeMode → permissionMode', () => {
   test.each([
     ['approval-required', 'default'],
     ['auto-accept-edits', 'acceptEdits'],
-    ['full-access', 'bypassPermissions']
+    ['full-access', 'bypassPermissions'],
+    ['plan', 'plan']
   ] as const)('%s maps to %s', async (runtimeMode, expectedPermissionMode) => {
     const captured: CapturedOptions[] = []
     const provider = await createClaudeCodeProvider(

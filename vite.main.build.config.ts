@@ -23,7 +23,8 @@ export default defineConfig({
       external: [
         'electron',
         'electron-squirrel-startup',
-        'better-sqlite3',
+        '@libsql/client',
+        'libsql',
         /^node:/
       ],
       output: {

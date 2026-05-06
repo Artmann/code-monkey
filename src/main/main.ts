@@ -1,4 +1,11 @@
-import { BrowserWindow, app, safeStorage, screen } from 'electron'
+import {
+  BrowserWindow,
+  Menu,
+  app,
+  safeStorage,
+  screen,
+  type MenuItemConstructorOptions
+} from 'electron'
 import started from 'electron-squirrel-startup'
 import path from 'node:path'
 import { startApiServer } from './api/server'
@@ -26,6 +33,35 @@ if (started) {
 }
 
 let apiPort: number | null = null
+let mainWindowInstance: BrowserWindow | null = null
+
+function buildApplicationMenu(): void {
+  const isMac = process.platform === 'darwin'
+
+  const fileSubmenu: MenuItemConstructorOptions[] = [
+    {
+      label: 'New Tab',
+      accelerator: 'CmdOrCtrl+T',
+      click: () => {
+        mainWindowInstance?.webContents.send('tabs:new-tab-requested')
+      }
+    },
+    { type: 'separator' },
+    isMac ? { role: 'close' } : { role: 'quit' }
+  ]
+
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? ([{ role: 'appMenu' }] as MenuItemConstructorOptions[])
+      : []),
+    { label: 'File', submenu: fileSubmenu },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' }
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 async function createMainWindow(): Promise<void> {
   const { workAreaSize } = screen.getPrimaryDisplay()
@@ -45,6 +81,14 @@ async function createMainWindow(): Promise<void> {
   mainWindow.maximize()
   mainWindow.show()
 
+  mainWindowInstance = mainWindow
+
+  mainWindow.on('closed', () => {
+    if (mainWindowInstance === mainWindow) {
+      mainWindowInstance = null
+    }
+  })
+
   if (isDebugSession) {
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   }
@@ -59,18 +103,17 @@ async function createMainWindow(): Promise<void> {
 }
 
 async function bootstrap(): Promise<void> {
-  runMigrations()
+  await runMigrations()
 
-  const database = getDatabase()
+  const database = await getDatabase()
   const runtime = createCodexRuntime({ database, safeStorage })
 
-  runtime.runner.recoverOrphanedThreads()
+  await runtime.runner.recoverOrphanedThreads()
 
   apiPort = await startApiServer({
     database,
     safeStorage,
     broker: runtime.broker,
-    taskStateBroker: runtime.taskStateBroker,
     runner: runtime.runner
   })
   console.log(`[code-monkey] API listening on http://127.0.0.1:${apiPort}`)
@@ -78,6 +121,9 @@ async function bootstrap(): Promise<void> {
   registerDialogHandlers()
 
   await app.whenReady()
+
+  buildApplicationMenu()
+
   await createMainWindow()
 }
 

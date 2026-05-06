@@ -1,5 +1,7 @@
+import type { ResultSet } from '@libsql/client'
 import { inArray } from 'drizzle-orm'
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
+import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
 
 import * as schema from '../database/schema'
 
@@ -9,8 +11,16 @@ export type SafeStorageLike = {
   decryptString: (encrypted: Buffer) => string
 }
 
+export type ProviderSettingsDatabase = LibSQLDatabase<typeof schema>
+
+type ProviderSettingsExecutor = BaseSQLiteDatabase<
+  'async',
+  ResultSet,
+  typeof schema
+>
+
 export type ProviderSettingsDependencies = {
-  database: BetterSQLite3Database<typeof schema>
+  database: ProviderSettingsDatabase
   safeStorage: SafeStorageLike
 }
 
@@ -82,10 +92,10 @@ const ALL_PROVIDER_KEYS = [
   CLAUDE_CODE_API_KEY_ENCRYPTED_KEY
 ] as const
 
-const readSettingsMap = (
-  database: ProviderSettingsDependencies['database']
-): Map<string, string> => {
-  const rows = database
+const readSettingsMap = async (
+  database: ProviderSettingsExecutor
+): Promise<Map<string, string>> => {
+  const rows = await database
     .select()
     .from(schema.settings)
     .where(inArray(schema.settings.key, [...ALL_PROVIDER_KEYS]))
@@ -94,12 +104,12 @@ const readSettingsMap = (
   return new Map(rows.map((row) => [row.key, row.value]))
 }
 
-const upsertSetting = (
-  database: ProviderSettingsDependencies['database'],
+const upsertSetting = async (
+  database: ProviderSettingsExecutor,
   key: string,
   value: string
-) => {
-  database
+): Promise<void> => {
+  await database
     .insert(schema.settings)
     .values({ key, value, updatedAt: new Date() })
     .onConflictDoUpdate({
@@ -109,11 +119,11 @@ const upsertSetting = (
     .run()
 }
 
-const deleteSettings = (
-  database: ProviderSettingsDependencies['database'],
+const deleteSettings = async (
+  database: ProviderSettingsExecutor,
   keys: readonly string[]
-) => {
-  database
+): Promise<void> => {
+  await database
     .delete(schema.settings)
     .where(inArray(schema.settings.key, [...keys]))
     .run()
@@ -132,11 +142,11 @@ const resolveKind = (map: Map<string, string>): ProviderKind | null => {
   return null
 }
 
-export const getProviderSettings = ({
+export const getProviderSettings = async ({
   database,
   safeStorage
-}: ProviderSettingsDependencies): ProviderSettings | null => {
-  const map = readSettingsMap(database)
+}: ProviderSettingsDependencies): Promise<ProviderSettings | null> => {
+  const map = await readSettingsMap(database)
   const kind = resolveKind(map)
 
   if (kind === 'codex') {
@@ -194,10 +204,10 @@ export const getProviderSettings = ({
   return null
 }
 
-export const getProviderSettingsSummary = ({
+export const getProviderSettingsSummary = async ({
   database
-}: ProviderSettingsDependencies): ProviderSettingsSummary | null => {
-  const map = readSettingsMap(database)
+}: ProviderSettingsDependencies): Promise<ProviderSettingsSummary | null> => {
+  const map = await readSettingsMap(database)
   const kind = resolveKind(map)
 
   if (kind === 'codex') {
@@ -239,21 +249,21 @@ export const getProviderSettingsSummary = ({
   return null
 }
 
-export const setProviderSettings = (
+export const setProviderSettings = async (
   { database, safeStorage }: ProviderSettingsDependencies,
   input: ProviderSettingsInput
-): void => {
-  database.transaction((tx) => {
-    deleteSettings(tx, ALL_PROVIDER_KEYS)
+): Promise<void> => {
+  await database.transaction(async (tx) => {
+    await deleteSettings(tx, ALL_PROVIDER_KEYS)
 
-    upsertSetting(tx, KIND_KEY, input.kind)
+    await upsertSetting(tx, KIND_KEY, input.kind)
 
     if (input.kind === 'codex') {
-      upsertSetting(tx, MODE_KEY, input.mode)
+      await upsertSetting(tx, MODE_KEY, input.mode)
 
       if (input.mode === 'cli') {
         if (input.binaryPath != null && input.binaryPath !== '') {
-          upsertSetting(tx, BINARY_PATH_KEY, input.binaryPath)
+          await upsertSetting(tx, BINARY_PATH_KEY, input.binaryPath)
         }
 
         return
@@ -267,16 +277,20 @@ export const setProviderSettings = (
 
       const encrypted = safeStorage.encryptString(input.apiKey)
 
-      upsertSetting(tx, API_KEY_ENCRYPTED_KEY, encrypted.toString('base64'))
+      await upsertSetting(
+        tx,
+        API_KEY_ENCRYPTED_KEY,
+        encrypted.toString('base64')
+      )
 
       return
     }
 
-    upsertSetting(tx, CLAUDE_CODE_MODE_KEY, input.mode)
+    await upsertSetting(tx, CLAUDE_CODE_MODE_KEY, input.mode)
 
     if (input.mode === 'cli') {
       if (input.executablePath != null && input.executablePath !== '') {
-        upsertSetting(
+        await upsertSetting(
           tx,
           CLAUDE_CODE_EXECUTABLE_PATH_KEY,
           input.executablePath
@@ -294,7 +308,7 @@ export const setProviderSettings = (
 
     const encrypted = safeStorage.encryptString(input.apiKey)
 
-    upsertSetting(
+    await upsertSetting(
       tx,
       CLAUDE_CODE_API_KEY_ENCRYPTED_KEY,
       encrypted.toString('base64')
@@ -302,10 +316,10 @@ export const setProviderSettings = (
   })
 }
 
-export const clearProviderSettings = ({
+export const clearProviderSettings = async ({
   database
-}: ProviderSettingsDependencies): void => {
-  deleteSettings(database, ALL_PROVIDER_KEYS)
+}: ProviderSettingsDependencies): Promise<void> => {
+  await deleteSettings(database, ALL_PROVIDER_KEYS)
 }
 
 export const providerSettingsKeys = {

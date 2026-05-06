@@ -1,6 +1,26 @@
 import { describe, expect, test } from 'vitest'
 
-import { derivePendingApproval, type ThreadEvent } from './use-thread'
+import {
+  applyStatusFromEvent,
+  derivePendingApproval,
+  type Thread,
+  type ThreadEvent
+} from './use-thread'
+
+const buildThread = (partial: Partial<Thread> = {}): Thread => ({
+  id: 't',
+  name: 'thread',
+  directoryPath: '/tmp/repo',
+  provider: null,
+  externalThreadId: null,
+  status: 'running',
+  errorMessage: null,
+  tabOrder: 0,
+  closedAt: null,
+  createdAt: new Date().toISOString(),
+  lastActivityAt: new Date().toISOString(),
+  ...partial
+})
 
 const buildEvent = (partial: Partial<ThreadEvent>): ThreadEvent => ({
   id: 'e',
@@ -90,5 +110,63 @@ describe('derivePendingApproval', () => {
     ]
 
     expect(derivePendingApproval(events)?.id).toEqual('req-2')
+  })
+})
+
+describe('applyStatusFromEvent', () => {
+  test('flips a running thread to idle on turn.completed', () => {
+    const thread = buildThread({ status: 'running' })
+    const event = buildEvent({ type: 'turn.completed' })
+
+    expect(applyStatusFromEvent(thread, event).status).toEqual('idle')
+  })
+
+  test('flips a running thread to idle on turn.cancelled', () => {
+    const thread = buildThread({ status: 'running' })
+    const event = buildEvent({ type: 'turn.cancelled' })
+
+    expect(applyStatusFromEvent(thread, event).status).toEqual('idle')
+  })
+
+  test('captures the error message on turn.failed', () => {
+    const thread = buildThread({ status: 'running' })
+    const event = buildEvent({
+      type: 'turn.failed',
+      payload: { message: 'boom' }
+    })
+
+    const next = applyStatusFromEvent(thread, event)
+
+    expect(next.status).toEqual('error')
+    expect(next.errorMessage).toEqual('boom')
+  })
+
+  test('captures the error.message on error events', () => {
+    const thread = buildThread({ status: 'running' })
+    const event = buildEvent({
+      type: 'error',
+      payload: { error: { message: 'kaboom' } }
+    })
+
+    const next = applyStatusFromEvent(thread, event)
+
+    expect(next.status).toEqual('error')
+    expect(next.errorMessage).toEqual('kaboom')
+  })
+
+  test('falls back to a generic message when none is provided', () => {
+    const thread = buildThread({ status: 'running' })
+    const event = buildEvent({ type: 'turn.failed', payload: null })
+
+    expect(applyStatusFromEvent(thread, event).errorMessage).toEqual(
+      'Unknown agent error'
+    )
+  })
+
+  test('leaves an idle thread alone on non-terminal events', () => {
+    const thread = buildThread({ status: 'idle' })
+    const event = buildEvent({ type: 'item.started' })
+
+    expect(applyStatusFromEvent(thread, event)).toBe(thread)
   })
 })

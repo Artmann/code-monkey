@@ -1,4 +1,3 @@
-import type { AgentState, TaskStatus } from '../../hooks/use-tasks'
 import type { ThreadStatus } from '../../hooks/use-thread'
 import { cn } from '../../lib/utils'
 
@@ -164,34 +163,6 @@ export function StatusDot({
       </svg>
     </span>
   )
-}
-
-export function statusFromTaskStatus(status: TaskStatus): StatusKey {
-  if (status === 'in_progress') {
-    return 'running'
-  }
-
-  if (status === 'done') {
-    return 'done'
-  }
-
-  return 'idle'
-}
-
-export function statusFromAgentState(state: AgentState): StatusKey {
-  if (state === 'working') {
-    return 'running'
-  }
-
-  if (state === 'done') {
-    return 'done'
-  }
-
-  if (state === 'waiting_for_input') {
-    return 'blocked'
-  }
-
-  return 'idle'
 }
 
 export function statusFromThreadStatus(status: ThreadStatus): StatusKey {

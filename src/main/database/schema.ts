@@ -6,17 +6,6 @@ import {
   uniqueIndex
 } from 'drizzle-orm/sqlite-core'
 
-export const taskStatusValues = ['in_progress', 'todo', 'done'] as const
-export type TaskStatus = (typeof taskStatusValues)[number]
-
-export const agentStateValues = [
-  'idle',
-  'waiting_for_input',
-  'working',
-  'done'
-] as const
-export type AgentState = (typeof agentStateValues)[number]
-
 export const threadStatusValues = [
   'starting',
   'running',
@@ -28,46 +17,6 @@ export type ThreadStatus = (typeof threadStatusValues)[number]
 
 export const providerKindValues = ['codex', 'claude-code'] as const
 export type ProviderKind = (typeof providerKindValues)[number]
-
-export const projects = sqliteTable('projects', {
-  id: text('id')
-    .primaryKey()
-    .$defaultFn(() => randomUUID()),
-  name: text('name').notNull(),
-  directoryPath: text('directory_path').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: integer('updated_at', { mode: 'timestamp' })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  deletedAt: integer('deleted_at', { mode: 'timestamp' })
-})
-
-export const tasks = sqliteTable('tasks', {
-  id: text('id')
-    .primaryKey()
-    .$defaultFn(() => randomUUID()),
-  projectId: text('project_id')
-    .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  description: text('description'),
-  status: text('status', { enum: taskStatusValues })
-    .notNull()
-    .$defaultFn(() => 'todo'),
-  agentState: text('agent_state', { enum: agentStateValues })
-    .notNull()
-    .$defaultFn(() => 'idle'),
-  sortOrder: integer('sort_order').notNull().default(0),
-  createdAt: integer('created_at', { mode: 'timestamp' })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: integer('updated_at', { mode: 'timestamp' })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  deletedAt: integer('deleted_at', { mode: 'timestamp' })
-})
 
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -81,20 +30,16 @@ export const threads = sqliteTable('threads', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => randomUUID()),
-  taskId: text('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
-  projectId: text('project_id').references(() => projects.id, {
-    onDelete: 'cascade'
-  }),
-  codexThreadId: text('codex_thread_id'),
-  externalThreadId: text('external_thread_id'),
+  name: text('name').notNull(),
+  directoryPath: text('directory_path').notNull(),
   provider: text('provider', { enum: providerKindValues }),
-  worktreePath: text('worktree_path'),
-  branchName: text('branch_name'),
-  baseBranch: text('base_branch'),
+  externalThreadId: text('external_thread_id'),
   status: text('status', { enum: threadStatusValues })
     .notNull()
     .$defaultFn(() => 'starting'),
   errorMessage: text('error_message'),
+  tabOrder: integer('tab_order').notNull().default(0),
+  closedAt: integer('closed_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -127,10 +72,6 @@ export const threadEvents = sqliteTable(
   ]
 )
 
-export type Project = typeof projects.$inferSelect
-export type NewProject = typeof projects.$inferInsert
-export type Task = typeof tasks.$inferSelect
-export type NewTask = typeof tasks.$inferInsert
 export type Setting = typeof settings.$inferSelect
 export type NewSetting = typeof settings.$inferInsert
 export type Thread = typeof threads.$inferSelect
