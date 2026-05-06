@@ -18,6 +18,10 @@ export type Thread = {
   closedAt: string | null
   createdAt: string
   lastActivityAt: string
+  // Derived server-side from the thread's events: true while there is at
+  // least one approval/user-input request whose matching resolution event
+  // hasn't arrived. Drives the "needs-you" indicator in the tab bar.
+  awaitingInput: boolean
 }
 
 export type ThreadEvent = {
@@ -50,6 +54,8 @@ const SUBSCRIBED_EVENT_TYPES = [
   'item.completed',
   'item.approval_requested',
   'item.approval_resolved',
+  'item.user_input_requested',
+  'item.user_input_resolved',
   'user_message',
   'error'
 ] as const
@@ -186,6 +192,44 @@ export const applyStatusFromEvent = (
   return thread
 }
 
+// Mirror the backend `awaitingInput` flag from streaming events. Request
+// events flip it on; resolution events flip it off. We never get _both_ a
+// request and resolve in the same payload, so flipping based on event type
+// is sufficient — and matches the backend's per-itemId scan as long as
+// the agent never opens a second pending request before resolving the
+// first (which is true today; the runner waits on each prompt).
+export const applyAwaitingInputFromEvent = (
+  thread: Thread,
+  event: ThreadEvent
+): Thread => {
+  if (
+    event.type === 'item.approval_requested' ||
+    event.type === 'item.user_input_requested'
+  ) {
+    if (thread.awaitingInput) {
+      return thread
+    }
+
+    return { ...thread, awaitingInput: true }
+  }
+
+  if (
+    event.type === 'item.approval_resolved' ||
+    event.type === 'item.user_input_resolved'
+  ) {
+    if (!thread.awaitingInput) {
+      return thread
+    }
+
+    return { ...thread, awaitingInput: false }
+  }
+
+  return thread
+}
+
+const applyEventToThread = (thread: Thread, event: ThreadEvent): Thread =>
+  applyAwaitingInputFromEvent(applyStatusFromEvent(thread, event), event)
+
 const appendEvent = (
   previous: ThreadResponse | null | undefined,
   event: ThreadEvent
@@ -200,7 +244,7 @@ const appendEvent = (
 
   return {
     ...previous,
-    thread: applyStatusFromEvent(previous.thread, event),
+    thread: applyEventToThread(previous.thread, event),
     events: [...previous.events, event].sort((a, b) => a.sequence - b.sequence)
   }
 }
@@ -226,10 +270,10 @@ export function useThreadStream(threadId: string | null | undefined) {
           (previous) => appendEvent(previous, event)
         )
 
-        // The threads list query feeds the TabBar's spinner. Mirror the
-        // status transition here so the tab stops spinning the moment the
-        // turn completes — without this it stays stuck on 'running' until
-        // the next list refetch.
+        // The threads list query feeds the TabBar's status indicator. Mirror
+        // both the status transition and the awaitingInput flag here so the
+        // tab updates the moment events arrive — without this it stays stale
+        // until the next list refetch.
         queryClient.setQueryData<Thread[] | undefined>(
           threadsKey,
           (previous) => {
@@ -239,7 +283,7 @@ export function useThreadStream(threadId: string | null | undefined) {
 
             return previous.map((thread) =>
               thread.id === threadId
-                ? applyStatusFromEvent(thread, event)
+                ? applyEventToThread(thread, event)
                 : thread
             )
           }

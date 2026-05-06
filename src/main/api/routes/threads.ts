@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import { asc, eq, isNull } from 'drizzle-orm'
+import { asc, eq, inArray, isNull } from 'drizzle-orm'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
@@ -8,6 +8,20 @@ import { z } from 'zod'
 import type { AgentRunner, PersistedEvent } from '../../codex/agent-runner'
 import type { EventBroker } from '../../codex/event-broker'
 import * as schema from '../../database/schema'
+
+// Event types that signal "the agent is waiting on the user". We pair each
+// _requested with the matching _resolved to know whether the wait is still
+// active. Keeping the lists tiny lets us scan thread events in a single
+// pass per thread when building the /threads response.
+const AWAITING_INPUT_REQUEST_TYPES = new Set([
+  'item.approval_requested',
+  'item.user_input_requested'
+])
+
+const AWAITING_INPUT_RESOLVED_TYPES = new Set([
+  'item.approval_resolved',
+  'item.user_input_resolved'
+])
 
 // 'code' = full-access (default agent behaviour); 'plan' = SDK plan mode
 // where the agent thinks aloud without executing tools. Kept narrow on the
@@ -54,6 +68,59 @@ const parsePayload = (raw: string): unknown => {
   }
 }
 
+// True when there is at least one approval/user-input request whose matching
+// resolution event has not yet been recorded. We scan once, gather resolved
+// item ids, then look for the latest unresolved request of either kind.
+const computeAwaitingInput = (
+  events: Array<{ type: string; payload: string }>
+): boolean => {
+  const resolvedItemIds = new Set<string>()
+
+  for (const event of events) {
+    if (!AWAITING_INPUT_RESOLVED_TYPES.has(event.type)) {
+      continue
+    }
+
+    const itemId = readItemId(event.payload)
+
+    if (itemId) {
+      resolvedItemIds.add(itemId)
+    }
+  }
+
+  for (const event of events) {
+    if (!AWAITING_INPUT_REQUEST_TYPES.has(event.type)) {
+      continue
+    }
+
+    const itemId = readItemId(event.payload)
+
+    if (itemId && !resolvedItemIds.has(itemId)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+const readItemId = (rawPayload: string): string | null => {
+  const parsed = parsePayload(rawPayload)
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    return null
+  }
+
+  const item = (parsed as { item?: { id?: unknown } }).item
+
+  if (!item || typeof item !== 'object') {
+    return null
+  }
+
+  const id = (item as { id?: unknown }).id
+
+  return typeof id === 'string' ? id : null
+}
+
 export const createThreadsRoutes = (
   dependencies: ThreadsRoutesDependencies
 ) => {
@@ -69,7 +136,50 @@ export const createThreadsRoutes = (
       .orderBy(asc(schema.threads.tabOrder))
       .all()
 
-    return context.json({ threads })
+    if (threads.length === 0) {
+      return context.json({ threads: [] })
+    }
+
+    // Pull only the event columns we need to derive awaitingInput in one
+    // round-trip, then bucket by threadId. Cheaper than firing one query
+    // per thread when there are many open tabs.
+    const threadIds = threads.map((thread) => thread.id)
+
+    const relevantEvents = await database
+      .select({
+        threadId: schema.threadEvents.threadId,
+        type: schema.threadEvents.type,
+        payload: schema.threadEvents.payload
+      })
+      .from(schema.threadEvents)
+      .where(inArray(schema.threadEvents.threadId, threadIds))
+      .all()
+
+    const eventsByThread = new Map<
+      string,
+      Array<{ type: string; payload: string }>
+    >()
+
+    for (const event of relevantEvents) {
+      if (
+        !AWAITING_INPUT_REQUEST_TYPES.has(event.type) &&
+        !AWAITING_INPUT_RESOLVED_TYPES.has(event.type)
+      ) {
+        continue
+      }
+
+      const bucket = eventsByThread.get(event.threadId) ?? []
+
+      bucket.push({ type: event.type, payload: event.payload })
+      eventsByThread.set(event.threadId, bucket)
+    }
+
+    const enriched = threads.map((thread) => ({
+      ...thread,
+      awaitingInput: computeAwaitingInput(eventsByThread.get(thread.id) ?? [])
+    }))
+
+    return context.json({ threads: enriched })
   })
 
   routes.post(
@@ -94,7 +204,12 @@ export const createThreadsRoutes = (
           .where(eq(schema.threads.id, thread.id))
           .get()
 
-        return context.json({ thread: refreshed ?? thread }, 201)
+        const base = refreshed ?? thread
+
+        // A freshly created thread has no events yet, so it can't possibly
+        // be awaiting input. Stamp the flag explicitly so the response shape
+        // matches the list endpoint and the frontend Thread type.
+        return context.json({ thread: { ...base, awaitingInput: false } }, 201)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
@@ -124,7 +239,18 @@ export const createThreadsRoutes = (
       .all()
 
     return context.json({
-      thread,
+      thread: {
+        ...thread,
+        awaitingInput: computeAwaitingInput(
+          events
+            .filter(
+              (event) =>
+                AWAITING_INPUT_REQUEST_TYPES.has(event.type) ||
+                AWAITING_INPUT_RESOLVED_TYPES.has(event.type)
+            )
+            .map((event) => ({ type: event.type, payload: event.payload }))
+        )
+      },
       events: events.map((event) => ({
         ...event,
         payload: parsePayload(event.payload)
@@ -166,7 +292,27 @@ export const createThreadsRoutes = (
         return context.json({ error: 'Thread not found' }, 404)
       }
 
-      return context.json({ thread: row })
+      // Preserve the awaitingInput flag on rename/reorder by recomputing
+      // from the thread's events. Cheaper than a second full DB query and
+      // keeps the response shape uniform across endpoints.
+      const events = await database
+        .select({
+          type: schema.threadEvents.type,
+          payload: schema.threadEvents.payload
+        })
+        .from(schema.threadEvents)
+        .where(eq(schema.threadEvents.threadId, threadId))
+        .all()
+
+      const awaitingInput = computeAwaitingInput(
+        events.filter(
+          (event) =>
+            AWAITING_INPUT_REQUEST_TYPES.has(event.type) ||
+            AWAITING_INPUT_RESOLVED_TYPES.has(event.type)
+        )
+      )
+
+      return context.json({ thread: { ...row, awaitingInput } })
     }
   )
 

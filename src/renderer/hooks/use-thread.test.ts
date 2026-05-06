@@ -19,6 +19,7 @@ const buildThread = (partial: Partial<Thread> = {}): Thread => ({
   closedAt: null,
   createdAt: new Date().toISOString(),
   lastActivityAt: new Date().toISOString(),
+  awaitingInput: false,
   ...partial
 })
 

@@ -30,6 +30,10 @@ export function UserInputCard({
 }: UserInputCardProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [otherText, setOtherText] = useState<Record<string, string>>({})
+  // Local "I just submitted" flag so the button visually locks immediately
+  // after click. The card swaps to <ResolvedRow /> once the agent confirms,
+  // but until then we don't want a still-clickable Send button.
+  const [submitted, setSubmitted] = useState(false)
 
   if (resolved) {
     return (
@@ -41,10 +45,18 @@ export function UserInputCard({
   }
 
   const handleSelect = (questionText: string, value: string) => {
+    if (submitted) {
+      return
+    }
+
     setAnswers((current) => ({ ...current, [questionText]: value }))
   }
 
   const handleSubmit = () => {
+    if (submitted) {
+      return
+    }
+
     const finalAnswers: Record<string, string> = {}
 
     for (const entry of questions) {
@@ -65,6 +77,7 @@ export function UserInputCard({
       }
     }
 
+    setSubmitted(true)
     onSubmit(finalAnswers)
   }
 
@@ -86,95 +99,109 @@ export function UserInputCard({
         Question for you
       </div>
 
-      {questions.map((entry, index) => (
-        <div
-          key={`${entry.question}-${index}`}
-          className="flex flex-col gap-2"
-        >
-          <div className="flex items-baseline gap-2">
-            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-              {entry.header}
-            </span>
-            <span className="text-[13px] font-medium text-foreground">
-              {entry.question}
-            </span>
+      <fieldset
+        disabled={submitted}
+        className={cn(
+          'flex flex-col gap-4 border-0 p-0',
+          submitted && 'pointer-events-none opacity-60'
+        )}
+      >
+        {questions.map((entry, index) => (
+          <div
+            key={`${entry.question}-${index}`}
+            className="flex flex-col gap-2"
+          >
+            <div className="flex items-baseline gap-2">
+              <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                {entry.header}
+              </span>
+              <span className="text-[13px] font-medium text-foreground">
+                {entry.question}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              {entry.options.map((option) => {
+                const isSelected = answers[entry.question] === option.label
+
+                return (
+                  <label
+                    key={option.label}
+                    className={cn(
+                      'flex items-start gap-2 rounded-md border px-3 py-2 text-[13px] transition-colors',
+                      submitted ? 'cursor-default' : 'cursor-pointer',
+                      isSelected
+                        ? 'border-banana/60 bg-banana/10'
+                        : !submitted && 'border-border hover:bg-accent/40',
+                      !isSelected && submitted && 'border-border'
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name={entry.question}
+                      value={option.label}
+                      checked={isSelected}
+                      onChange={() => handleSelect(entry.question, option.label)}
+                      className="mt-1"
+                    />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium">{option.label}</span>
+                      <span className="text-[12px] text-muted-foreground">
+                        {option.description}
+                      </span>
+                    </div>
+                  </label>
+                )
+              })}
+
+              <label
+                className={cn(
+                  'flex items-start gap-2 rounded-md border px-3 py-2 text-[13px] transition-colors',
+                  submitted ? 'cursor-default' : 'cursor-pointer',
+                  answers[entry.question] === '__other__'
+                    ? 'border-banana/60 bg-banana/10'
+                    : !submitted && 'border-border hover:bg-accent/40',
+                  answers[entry.question] !== '__other__' &&
+                    submitted &&
+                    'border-border'
+                )}
+              >
+                <input
+                  type="radio"
+                  name={entry.question}
+                  value="__other__"
+                  checked={answers[entry.question] === '__other__'}
+                  onChange={() => handleSelect(entry.question, '__other__')}
+                  className="mt-1"
+                />
+                <span className="font-medium">Other (write your own)</span>
+              </label>
+
+              {answers[entry.question] === '__other__' ? (
+                <Textarea
+                  value={otherText[entry.question] ?? ''}
+                  onChange={(event) =>
+                    setOtherText((current) => ({
+                      ...current,
+                      [entry.question]: event.target.value
+                    }))
+                  }
+                  placeholder="Type your answer"
+                  className="min-h-[60px] resize-none text-[13px]"
+                />
+              ) : null}
+            </div>
           </div>
-
-          <div className="flex flex-col gap-1.5">
-            {entry.options.map((option) => {
-              const isSelected = answers[entry.question] === option.label
-
-              return (
-                <label
-                  key={option.label}
-                  className={cn(
-                    'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-[13px] transition-colors',
-                    isSelected
-                      ? 'border-banana/60 bg-banana/10'
-                      : 'border-border hover:bg-accent/40'
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name={entry.question}
-                    value={option.label}
-                    checked={isSelected}
-                    onChange={() => handleSelect(entry.question, option.label)}
-                    className="mt-1"
-                  />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{option.label}</span>
-                    <span className="text-[12px] text-muted-foreground">
-                      {option.description}
-                    </span>
-                  </div>
-                </label>
-              )
-            })}
-
-            <label
-              className={cn(
-                'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-[13px] transition-colors',
-                answers[entry.question] === '__other__'
-                  ? 'border-banana/60 bg-banana/10'
-                  : 'border-border hover:bg-accent/40'
-              )}
-            >
-              <input
-                type="radio"
-                name={entry.question}
-                value="__other__"
-                checked={answers[entry.question] === '__other__'}
-                onChange={() => handleSelect(entry.question, '__other__')}
-                className="mt-1"
-              />
-              <span className="font-medium">Other (write your own)</span>
-            </label>
-
-            {answers[entry.question] === '__other__' ? (
-              <Textarea
-                value={otherText[entry.question] ?? ''}
-                onChange={(event) =>
-                  setOtherText((current) => ({
-                    ...current,
-                    [entry.question]: event.target.value
-                  }))
-                }
-                placeholder="Type your answer"
-                className="min-h-[60px] resize-none text-[13px]"
-              />
-            ) : null}
-          </div>
-        </div>
-      ))}
+        ))}
+      </fieldset>
 
       <div className="flex justify-end">
         <Button
           size="sm"
-          disabled={!allAnswered}
+          disabled={!allAnswered || submitted}
           onClick={handleSubmit}
         >
-          Send answers
+          {submitted ? 'Sending…' : 'Send answers'}
         </Button>
       </div>
     </div>

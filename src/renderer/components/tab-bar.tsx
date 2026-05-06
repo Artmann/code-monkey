@@ -1,5 +1,11 @@
 import { Loader2, Plus, RotateCcw, Settings, X } from 'lucide-react'
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent
+} from 'react'
 import { useMatch, useNavigate } from 'react-router-dom'
 
 import { useNewTab } from '../hooks/use-new-tab'
@@ -12,6 +18,17 @@ import {
   type Thread
 } from '../hooks/use-thread'
 import { cn } from '../lib/utils'
+import { WindowControls } from './window-controls'
+
+// `WebkitAppRegion` is an Electron-specific CSS property; React's CSSProperties
+// type doesn't know about it, so we cast through here to keep the call sites
+// readable.
+const dragRegion: CSSProperties = {
+  WebkitAppRegion: 'drag'
+} as CSSProperties
+const noDragRegion: CSSProperties = {
+  WebkitAppRegion: 'no-drag'
+} as CSSProperties
 
 function TabLabel({
   active,
@@ -184,8 +201,20 @@ export function TabBar() {
     }
   }
 
+  // The TabBar doubles as the window title bar. The whole row is a drag
+  // region (`WebkitAppRegion: drag`); every interactive child opts back out
+  // with `noDragRegion` so clicks still register. On macOS the native traffic
+  // lights live on the left, so we reserve ~80px of padding to clear them.
+  const isMac = window.codeMonkey.platform === 'darwin'
+
   return (
-    <div className="flex h-9 shrink-0 items-stretch gap-0.5 border-b border-[color:var(--line)] bg-[color:var(--bg-2)] px-1">
+    <div
+      className={cn(
+        'flex h-9 shrink-0 items-stretch gap-0.5 border-b border-[color:var(--line)] bg-[color:var(--bg-2)]',
+        isMac ? 'pl-20 pr-1' : 'pl-1'
+      )}
+      style={dragRegion}
+    >
       {threads.map((thread) => {
         const isActive = thread.id === activeThreadId
 
@@ -193,6 +222,7 @@ export function TabBar() {
           <div
             key={thread.id}
             onClick={() => navigate(`/threads/${thread.id}`)}
+            style={noDragRegion}
             className={cn(
               'group flex min-w-0 cursor-pointer items-center gap-1.5 rounded-t-md border-b-2 px-2.5',
               isActive
@@ -200,7 +230,25 @@ export function TabBar() {
                 : 'border-transparent bg-transparent text-[color:var(--fg-3)] hover:text-[color:var(--fg)]'
             )}
           >
-            {thread.status === 'running' || thread.status === 'starting' ? (
+            {thread.awaitingInput ? (
+              // Pulsing banana dot reads as "needs you" instead of "working".
+              // Sized slightly larger than the idle dot so it pops in the
+              // corner of the eye while the user is in another tab.
+              <span
+                aria-label="Awaiting your input"
+                role="img"
+                className="relative inline-flex size-2 shrink-0 items-center justify-center"
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute inline-flex size-2 animate-ping rounded-full bg-banana/60"
+                />
+                <span
+                  aria-hidden="true"
+                  className="relative inline-flex size-2 rounded-full bg-banana"
+                />
+              </span>
+            ) : thread.status === 'running' || thread.status === 'starting' ? (
               <Loader2
                 aria-label="Working"
                 role="img"
@@ -273,6 +321,7 @@ export function TabBar() {
         onClick={() => {
           void startNewTab()
         }}
+        style={noDragRegion}
         className="ml-1 inline-flex size-7 shrink-0 items-center justify-center self-center rounded-md text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]"
       >
         <Plus
@@ -281,23 +330,34 @@ export function TabBar() {
         />
       </button>
 
-      <div className="ml-auto flex items-center pr-1">
-        <button
-          type="button"
-          aria-label="Settings"
-          onClick={() => navigate('/settings')}
-          className={cn(
-            'inline-flex size-7 shrink-0 items-center justify-center self-center rounded-md hover:bg-[color:var(--bg-3)]',
-            isSettingsActive
-              ? 'text-[color:var(--fg)]'
-              : 'text-[color:var(--fg-3)] hover:text-[color:var(--fg)]'
-          )}
-        >
-          <Settings
-            aria-hidden="true"
-            className="size-4"
-          />
-        </button>
+      <div
+        className="ml-auto flex items-stretch self-stretch"
+        style={noDragRegion}
+      >
+        <div className="flex items-center px-1">
+          <button
+            type="button"
+            aria-label="Settings"
+            onClick={() => navigate('/settings')}
+            className={cn(
+              'inline-flex size-7 shrink-0 items-center justify-center self-center rounded-md hover:bg-[color:var(--bg-3)]',
+              isSettingsActive
+                ? 'text-[color:var(--fg)]'
+                : 'text-[color:var(--fg-3)] hover:text-[color:var(--fg)]'
+            )}
+          >
+            <Settings
+              aria-hidden="true"
+              className="size-4"
+            />
+          </button>
+        </div>
+
+        {!isMac ? (
+          <div className="mx-1 my-2 w-px self-stretch bg-[color:var(--line)]" />
+        ) : null}
+
+        <WindowControls />
       </div>
     </div>
   )

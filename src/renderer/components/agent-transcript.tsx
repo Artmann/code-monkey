@@ -9,7 +9,14 @@ import {
   Loader2,
   Terminal
 } from 'lucide-react'
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  memo,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode
+} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -560,6 +567,25 @@ export function AgentTranscript({
   thread?: Thread | null
   cancelRequested?: boolean
 }) {
+  // buildNodes() walks the whole event log to dedupe, fold tool steps into
+  // activity strips, and resolve approval/user-input pairs. It can run for
+  // tens of milliseconds on long transcripts, so cache by event-array
+  // identity — the SSE handler only ever produces a new array reference
+  // when an event is appended, so reference equality is the right cache key.
+  const nodes = useMemo(() => buildNodes(events), [events])
+
+  // Snapshot which node ids existed at first paint of this transcript so we
+  // can skip the motion enter animation for them — only future arrivals get
+  // the fade-in. Lazy initial state makes this a one-shot computation, and
+  // ref-style "set on first render" patterns trip the rules-of-hooks linter.
+  const [initialIds] = useState<Set<string>>(
+    () => new Set(nodes.map((node) => node.id))
+  )
+
+  const serverRunning =
+    thread?.status === 'running' || thread?.status === 'starting'
+  const running = serverRunning && !cancelRequested
+
   if (events.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-10">
@@ -570,11 +596,6 @@ export function AgentTranscript({
     )
   }
 
-  const nodes = buildNodes(events)
-  const serverRunning =
-    thread?.status === 'running' || thread?.status === 'starting'
-  const running = serverRunning && !cancelRequested
-
   return (
     <div className="flex flex-col gap-2.5">
       <AnimatePresence initial={false}>
@@ -582,6 +603,7 @@ export function AgentTranscript({
           <RenderedNode
             key={node.id}
             node={node}
+            animateIn={!initialIds.has(node.id)}
           />
         ))}
       </AnimatePresence>
@@ -591,13 +613,20 @@ export function AgentTranscript({
   )
 }
 
-function RenderedNode({ node }: { node: RenderNode }) {
+function RenderedNode({
+  node,
+  animateIn
+}: {
+  node: RenderNode
+  animateIn: boolean
+}) {
   if (node.kind === 'prep') return <PrepRow payload={node.payload} />
   if (node.kind === 'user') {
     return (
       <UserMessageCard
         text={node.text}
         timestamp={node.timestamp}
+        animateIn={animateIn}
       />
     )
   }
@@ -607,6 +636,7 @@ function RenderedNode({ node }: { node: RenderNode }) {
         text={node.text}
         timestamp={node.timestamp}
         streaming={node.streaming}
+        animateIn={animateIn}
       />
     )
   }
@@ -615,6 +645,7 @@ function RenderedNode({ node }: { node: RenderNode }) {
       <ActivityStrip
         steps={node.steps}
         running={node.running}
+        animateIn={animateIn}
       />
     )
   if (node.kind === 'todo') return <TodoRow items={node.items} />
@@ -662,7 +693,7 @@ function PlanProposedRow({ plan }: { plan: string }) {
         </div>
       ) : (
         <div className="prose prose-sm max-w-none whitespace-pre-wrap break-words font-mono text-[12.5px]">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{plan}</ReactMarkdown>
+          <MarkdownBody text={plan} />
         </div>
       )}
     </div>
@@ -698,22 +729,36 @@ function ApprovalNode({
   )
 }
 
-function UserMessageCard({ text }: { text: string; timestamp: string | null }) {
+function UserMessageCard({
+  text,
+  animateIn
+}: {
+  text: string
+  timestamp: string | null
+  animateIn: boolean
+}) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={animateIn ? { opacity: 0, y: 4 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       className="flex justify-end"
     >
       <div className="max-w-[78%] rounded-[14px] rounded-br-[4px] bg-[color:var(--bg-3)] px-3 py-2">
         <div className="prose prose-sm max-w-none text-[13.5px] leading-[1.5] text-[color:var(--fg)] dark:prose-invert">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+          <MarkdownBody text={text} />
         </div>
       </div>
     </motion.div>
   )
 }
+
+// react-markdown re-parses its children prop on every render. Memoising by
+// text means stable transcript bodies don't re-run the markdown pipeline
+// (with remark-gfm) when an unrelated parent state change forces a re-render.
+const MarkdownBody = memo(function MarkdownBody({ text }: { text: string }) {
+  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+})
 
 function SystemRow({ children }: { children: ReactNode }) {
   return (
@@ -752,10 +797,12 @@ function toolIconFor(tool: ToolStep['tool']) {
 
 function ActivityStrip({
   steps,
-  running
+  running,
+  animateIn
 }: {
   steps: ToolStep[]
   running: boolean
+  animateIn: boolean
 }) {
   const [open, setOpen] = useState(false)
   const failed = steps.filter((step) => !step.ok).length
@@ -780,7 +827,7 @@ function ActivityStrip({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={animateIn ? { opacity: 0, y: 4 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
     >

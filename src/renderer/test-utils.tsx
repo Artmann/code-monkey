@@ -63,19 +63,43 @@ export function mockApiBridge(port = 55_555) {
   const target = window as unknown as {
     codeMonkey: {
       apiPort: number
+      platform: NodeJS.Platform
       selectFolder: FetchMock
       onNewTabRequested: FetchMock
+      window: {
+        minimize: FetchMock
+        maximizeToggle: FetchMock
+        close: FetchMock
+        isMaximized: FetchMock
+        toggleDevTools: FetchMock
+        reload: FetchMock
+        onStateChanged: FetchMock
+      }
     }
   }
 
   target.codeMonkey = {
     apiPort: port,
+    platform: process.platform,
     selectFolder: vi.fn(),
     onNewTabRequested: vi.fn(() => {
       return () => {
         // no-op
       }
-    })
+    }),
+    window: {
+      minimize: vi.fn(),
+      maximizeToggle: vi.fn(),
+      close: vi.fn(),
+      isMaximized: vi.fn(async () => false),
+      toggleDevTools: vi.fn(),
+      reload: vi.fn(),
+      onStateChanged: vi.fn(() => {
+        return () => {
+          // no-op
+        }
+      })
+    }
   }
 }
 

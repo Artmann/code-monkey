@@ -34,6 +34,31 @@ export function ApprovalCard(props: ApprovalCardProps) {
 function PendingCard({ tool, summary, onDecide }: PendingProps) {
   const [mode, setMode] = useState<'idle' | 'rejecting'>('idle')
   const [reason, setReason] = useState('')
+  // Local "I just submitted" flag: keeps the buttons visually locked the moment
+  // the user clicks. The card swaps to <ResolvedRow /> once the agent confirms,
+  // but until then we don't want clickable Approve/Reject buttons.
+  const [submitted, setSubmitted] = useState(false)
+
+  const submitApprove = () => {
+    if (submitted) {
+      return
+    }
+
+    setSubmitted(true)
+    onDecide({ decision: 'approve' })
+  }
+
+  const submitReject = () => {
+    if (submitted) {
+      return
+    }
+
+    setSubmitted(true)
+    onDecide({
+      decision: 'reject',
+      reason: reason.trim() === '' ? undefined : reason.trim()
+    })
+  }
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-banana/50 bg-banana/5 px-4 py-3">
@@ -57,11 +82,13 @@ function PendingCard({ tool, summary, onDecide }: PendingProps) {
             onChange={(event) => setReason(event.target.value)}
             placeholder="Why reject? (optional — will be sent to the agent)"
             className="min-h-[60px] resize-none text-[13px]"
+            disabled={submitted}
           />
           <div className="flex gap-2">
             <Button
               size="sm"
               variant="outline"
+              disabled={submitted}
               onClick={() => {
                 setMode('idle')
                 setReason('')
@@ -72,14 +99,10 @@ function PendingCard({ tool, summary, onDecide }: PendingProps) {
             <Button
               size="sm"
               variant="destructive"
-              onClick={() =>
-                onDecide({
-                  decision: 'reject',
-                  reason: reason.trim() === '' ? undefined : reason.trim()
-                })
-              }
+              disabled={submitted}
+              onClick={submitReject}
             >
-              Send rejection
+              {submitted ? 'Sending…' : 'Send rejection'}
             </Button>
           </div>
         </div>
@@ -87,13 +110,15 @@ function PendingCard({ tool, summary, onDecide }: PendingProps) {
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => onDecide({ decision: 'approve' })}
+            disabled={submitted}
+            onClick={submitApprove}
           >
-            Approve
+            {submitted ? 'Sending…' : 'Approve'}
           </Button>
           <Button
             size="sm"
             variant="outline"
+            disabled={submitted}
             onClick={() => setMode('rejecting')}
           >
             Reject

@@ -1,11 +1,4 @@
-import {
-  BrowserWindow,
-  Menu,
-  app,
-  safeStorage,
-  screen,
-  type MenuItemConstructorOptions
-} from 'electron'
+import { BrowserWindow, Menu, app, safeStorage, screen } from 'electron'
 import started from 'electron-squirrel-startup'
 import path from 'node:path'
 import { startApiServer } from './api/server'
@@ -13,6 +6,10 @@ import { createCodexRuntime } from './codex/runtime'
 import { getDatabase } from './database/client'
 import { runMigrations } from './database/migrate'
 import { registerDialogHandlers } from './ipc/dialog'
+import {
+  registerWindowHandlers,
+  wireWindowStateEvents
+} from './ipc/window'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
@@ -35,39 +32,25 @@ if (started) {
 let apiPort: number | null = null
 let mainWindowInstance: BrowserWindow | null = null
 
-function buildApplicationMenu(): void {
-  const isMac = process.platform === 'darwin'
-
-  const fileSubmenu: MenuItemConstructorOptions[] = [
-    {
-      label: 'New Tab',
-      accelerator: 'CmdOrCtrl+T',
-      click: () => {
-        mainWindowInstance?.webContents.send('tabs:new-tab-requested')
-      }
-    },
-    { type: 'separator' },
-    isMac ? { role: 'close' } : { role: 'quit' }
-  ]
-
-  const template: MenuItemConstructorOptions[] = [
-    ...(isMac ? ([{ role: 'appMenu' }] as MenuItemConstructorOptions[]) : []),
-    { label: 'File', submenu: fileSubmenu },
-    { role: 'editMenu' },
-    { role: 'viewMenu' },
-    { role: 'windowMenu' }
-  ]
-
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
-}
-
 async function createMainWindow(): Promise<void> {
   const { workAreaSize } = screen.getPrimaryDisplay()
 
+  const isMac = process.platform === 'darwin'
+
+  // macOS keeps its native traffic lights via `hiddenInset` so the window still
+  // feels native (green-button fullscreen, double-click-to-zoom, etc.). On
+  // Windows and Linux we go fully frameless and draw our own caption buttons
+  // in the renderer's TabBar.
   const mainWindow = new BrowserWindow({
     width: workAreaSize.width,
     height: workAreaSize.height,
     show: false,
+    ...(isMac
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 12, y: 11 }
+        }
+      : { frame: false }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -80,6 +63,8 @@ async function createMainWindow(): Promise<void> {
   mainWindow.show()
 
   mainWindowInstance = mainWindow
+
+  wireWindowStateEvents(mainWindow)
 
   mainWindow.on('closed', () => {
     if (mainWindowInstance === mainWindow) {
@@ -117,10 +102,13 @@ async function bootstrap(): Promise<void> {
   console.log(`[code-monkey] API listening on http://127.0.0.1:${apiPort}`)
 
   registerDialogHandlers()
+  registerWindowHandlers(() => mainWindowInstance)
 
   await app.whenReady()
 
-  buildApplicationMenu()
+  // The custom title bar lives in the renderer; the OS application menu
+  // (File / Edit / View / Window) is removed entirely on every platform.
+  Menu.setApplicationMenu(null)
 
   await createMainWindow()
 }

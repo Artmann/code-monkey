@@ -80,6 +80,7 @@ const buildThread = (overrides: Partial<Thread> = {}): Thread => ({
   closedAt: null,
   createdAt: new Date(0).toISOString(),
   lastActivityAt: new Date(0).toISOString(),
+  awaitingInput: false,
   ...overrides
 })
 

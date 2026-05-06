@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { motion } from 'framer-motion'
 import { Check, Copy } from 'lucide-react'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -12,13 +12,17 @@ interface AgentMessageCardProps {
   timestamp?: string | null
   streaming?: boolean
   className?: string
+  // When false, skip the fade-in transition. Used to avoid replaying every
+  // already-present message animation when a transcript first paints.
+  animateIn?: boolean
 }
 
-const fadeIn = {
-  initial: { opacity: 0, y: 6 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.25, ease: 'easeOut' as const }
-}
+// Re-render only when the markdown text actually changes, not on every parent
+// re-render. remark-gfm parsing is non-trivial; this matters for transcripts
+// with many messages.
+const MarkdownBody = memo(function MarkdownBody({ text }: { text: string }) {
+  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+})
 
 function formatTime(value?: string | null): string | null {
   if (!value) {
@@ -38,7 +42,8 @@ export function AgentMessageCard({
   text,
   timestamp,
   streaming = false,
-  className
+  className,
+  animateIn = true
 }: AgentMessageCardProps) {
   const [copied, setCopied] = useState(false)
 
@@ -56,7 +61,9 @@ export function AgentMessageCard({
 
   return (
     <motion.div
-      {...fadeIn}
+      initial={animateIn ? { opacity: 0, y: 6 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut' as const }}
       className={cn('group flex flex-col', className)}
     >
       <div className="mb-1 flex items-baseline gap-2">
@@ -71,7 +78,7 @@ export function AgentMessageCard({
       </div>
 
       <div className="prose prose-sm prose-agent max-w-none text-[13.5px] leading-[1.55] text-[color:var(--fg)] dark:prose-invert">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+        <MarkdownBody text={text} />
         {streaming ? (
           <span
             aria-hidden="true"

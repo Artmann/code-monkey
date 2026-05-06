@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { useProviderSettingsQuery } from '../hooks/use-provider-settings'
 import {
@@ -13,44 +13,31 @@ import { apiFetch } from '../lib/api-client'
 import { AgentPane } from './agent-pane'
 import type { ApprovalDecisionShape } from './agent-transcript'
 
-export function AgentView() {
-  const { threadId } = useParams<{ threadId: string }>()
+// `threadId` arrives as a prop now (rather than from useParams) because App
+// renders one <AgentView> per open thread inside <Activity> blocks for tab
+// persistence — the URL only drives which one is *visible*, not which ones
+// are mounted. See App.tsx for the routing/visibility wiring.
+export function AgentView({ threadId }: { threadId: string }) {
   const navigate = useNavigate()
 
   const providerQuery = useProviderSettingsQuery()
   const threadQuery = useThreadQuery(threadId)
-  useThreadStream(threadId ?? null)
+  useThreadStream(threadId)
 
   const sendMessage = useSendMessageMutation()
   const cancelThread = useCancelThreadMutation()
 
   // Local "I just clicked Stop" flag. Lets the UI flip out of the running
   // state immediately rather than waiting for the server round-trip and
-  // the SSE event to land. Cleared as soon as a fresh send goes out or the
-  // user navigates to a different thread.
-  const [cancelRequestedFor, setCancelRequestedFor] = useState<string | null>(
-    null
-  )
+  // the SSE event to land. Cleared once a fresh send goes out.
+  const [cancelRequested, setCancelRequested] = useState(false)
   // Composer mode is per-thread and lives here so the toggle survives
-  // re-renders of AgentPane and resets when the user switches threads.
+  // re-renders of AgentPane.
   const [composerMode, setComposerMode] = useState<ComposerMode>('code')
-  const previousThreadIdRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (previousThreadIdRef.current !== threadId) {
-      previousThreadIdRef.current = threadId ?? null
-      setCancelRequestedFor(null)
-      setComposerMode('code')
-    }
-  }, [threadId])
 
   const thread = threadQuery.data?.thread ?? null
   const events = threadQuery.data?.events ?? []
   const providerConfigured = Boolean(providerQuery.data)
-
-  if (!threadId) {
-    return null
-  }
 
   if (threadQuery.isLoading) {
     return (
@@ -76,17 +63,17 @@ export function AgentView() {
   }
 
   function onSend(text: string) {
-    setCancelRequestedFor(null)
+    setCancelRequested(false)
     sendMessage.mutate({
-      threadId: threadId as string,
+      threadId,
       text,
       mode: composerMode
     })
   }
 
   function onStop() {
-    setCancelRequestedFor(threadId as string)
-    cancelThread.mutate(threadId as string)
+    setCancelRequested(true)
+    cancelThread.mutate(threadId)
   }
 
   function onApprovalDecision(
@@ -108,8 +95,6 @@ export function AgentView() {
       body: JSON.stringify({ answers })
     })
   }
-
-  const cancelRequested = cancelRequestedFor === threadId
 
   return (
     <AgentPane

@@ -1,33 +1,74 @@
-import { Route, Routes } from 'react-router-dom'
+import { Activity, useMemo } from 'react'
+import { Route, Routes, useMatch } from 'react-router-dom'
 
 import { AgentView } from './components/agent-view'
 import { EmptyState } from './components/empty-state'
 import { TabBar } from './components/tab-bar'
+import { useAppShortcuts } from './hooks/use-app-shortcuts'
 import { useRoutePersistence } from './hooks/use-route-persistence'
+import { useThreadsQuery } from './hooks/use-thread'
 import { SettingsRoute } from './routes/settings-route'
 
 export function App() {
   useRoutePersistence()
+  useAppShortcuts()
+
+  // Tab persistence: render *every* open thread's <AgentView> at once, each
+  // wrapped in <Activity> mode={'visible' | 'hidden'} keyed off the URL.
+  // React 19 keeps hidden subtrees mounted (state + effects intact, render
+  // work deprioritized), so switching tabs becomes a visibility flip — no
+  // remount, no SSE reconnect, no transcript rebuild. Each AgentView already
+  // runs useThreadStream internally, so we get cross-tab cache updates for
+  // free without a separate "all-threads" stream subscription.
+  const threadsQuery = useThreadsQuery()
+  const openThreadIds = useMemo(
+    () => (threadsQuery.data ?? []).map((thread) => thread.id),
+    [threadsQuery.data]
+  )
+
+  const threadMatch = useMatch('/threads/:threadId')
+  const activeThreadId = threadMatch?.params.threadId ?? null
+  const isThreadRoute = threadMatch !== null
 
   return (
     <div className="flex h-screen min-h-0 flex-col bg-background">
       <TabBar />
 
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <Routes>
-          <Route
-            path="/"
-            element={<EmptyState />}
-          />
-          <Route
-            path="/threads/:threadId"
-            element={<AgentView />}
-          />
-          <Route
-            path="/settings"
-            element={<SettingsRoute />}
-          />
-        </Routes>
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        {/* All AgentViews live here permanently; only the active one is
+            visible. Hidden ones are absolutely positioned so they don't
+            participate in layout while invisible. */}
+        {openThreadIds.map((threadId) => {
+          const isActive = threadId === activeThreadId
+
+          return (
+            <Activity
+              key={threadId}
+              mode={isActive ? 'visible' : 'hidden'}
+              name={`thread-${threadId}`}
+            >
+              <div className="absolute inset-0">
+                <AgentView threadId={threadId} />
+              </div>
+            </Activity>
+          )
+        })}
+
+        {/* Non-thread routes render normally. We only mount them when the
+            URL doesn't point at a thread, so they sit underneath the
+            Activity layer cleanly. */}
+        {!isThreadRoute ? (
+          <Routes>
+            <Route
+              path="/"
+              element={<EmptyState />}
+            />
+            <Route
+              path="/settings"
+              element={<SettingsRoute />}
+            />
+          </Routes>
+        ) : null}
       </div>
     </div>
   )
