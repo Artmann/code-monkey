@@ -42,9 +42,7 @@ export function systemPrefersDark(): boolean {
   )
 }
 
-export function resolveMode(
-  preference: ThemePreference
-): 'light' | 'dark' {
+export function resolveMode(preference: ThemePreference): 'light' | 'dark' {
   if (preference === 'system') {
     return systemPrefersDark() ? 'dark' : 'light'
   }

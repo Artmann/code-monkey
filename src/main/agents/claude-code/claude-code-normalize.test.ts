@@ -79,9 +79,7 @@ describe('normalizeClaudeCodeStream', () => {
         type: 'assistant',
         message: {
           id: 'msg-2',
-          content: [
-            { type: 'thinking', thinking: 'Considering options…' }
-          ]
+          content: [{ type: 'thinking', thinking: 'Considering options…' }]
         }
       }
     ])

@@ -376,8 +376,7 @@ const buildCanUseTool = ({
       try {
         answers = await onUserInputRequest(request)
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error)
+        const message = error instanceof Error ? error.message : String(error)
 
         channel.push({
           type: 'item.user_input_resolved',
@@ -453,8 +452,7 @@ const buildCanUseTool = ({
       item: {
         id: request.id,
         decision: decision.decision,
-        reason:
-          decision.decision === 'reject' ? decision.reason : undefined,
+        reason: decision.decision === 'reject' ? decision.reason : undefined,
         resolvedAt
       }
     } as NormalizedEvent)
@@ -511,17 +509,13 @@ export const createClaudeCodeProvider = async (
   const env = buildEnv(settings)
   const pathToClaudeCodeExecutable = buildExecutablePath(settings)
 
-  const baseOptions = (
-    threadOptions?: AgentThreadOptions
-  ): QueryOptions => ({
+  const baseOptions = (threadOptions?: AgentThreadOptions): QueryOptions => ({
     ...(threadOptions?.workingDirectory != null
       ? { cwd: threadOptions.workingDirectory }
       : {}),
     permissionMode: permissionModeFor(threadOptions?.runtimeMode),
     settingSources: [],
-    ...(pathToClaudeCodeExecutable
-      ? { pathToClaudeCodeExecutable }
-      : {}),
+    ...(pathToClaudeCodeExecutable ? { pathToClaudeCodeExecutable } : {}),
     ...(env ? { env } : {})
   })
 
@@ -579,10 +573,7 @@ export const createClaudeCodeProvider = async (
         const raw = query({ prompt: input, options })
         const { events: sdkEvents, getSessionId } = captureSessionId(raw)
 
-        const generator = normalizeClaudeCodeStream(
-          sdkEvents,
-          currentSessionId
-        )
+        const generator = normalizeClaudeCodeStream(sdkEvents, currentSessionId)
 
         // Single-channel merge: approval events are pushed from canUseTool
         // while the SDK stream is blocked awaiting a decision. We drain the
@@ -627,9 +618,7 @@ export const createClaudeCodeProvider = async (
       cwd: input.workingDirectory,
       permissionMode: 'plan',
       settingSources: [],
-      ...(pathToClaudeCodeExecutable
-        ? { pathToClaudeCodeExecutable }
-        : {}),
+      ...(pathToClaudeCodeExecutable ? { pathToClaudeCodeExecutable } : {}),
       ...(env ? { env } : {})
     }
 
@@ -654,7 +643,9 @@ export const createClaudeCodeProvider = async (
       if (message.type !== 'assistant') continue
 
       const blocks = (
-        message as { message?: { content?: Array<{ type: string; text?: string }> } }
+        message as {
+          message?: { content?: Array<{ type: string; text?: string }> }
+        }
       ).message?.content
 
       if (!Array.isArray(blocks)) continue

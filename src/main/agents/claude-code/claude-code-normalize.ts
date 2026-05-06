@@ -1,7 +1,10 @@
 import type { NormalizedEvent } from '../provider'
 
 type TextBlock = { type: 'text'; text: string }
-type ThinkingBlock = { type: 'thinking' | 'extended_thinking'; thinking: string }
+type ThinkingBlock = {
+  type: 'thinking' | 'extended_thinking'
+  thinking: string
+}
 type ToolUseBlock = {
   type: 'tool_use'
   id: string
@@ -110,9 +113,7 @@ const mapAssistantToolUse = (
   }
 
   if (block.name === 'TodoWrite') {
-    const todos = Array.isArray(
-      (block.input as { todos?: unknown }).todos
-    )
+    const todos = Array.isArray((block.input as { todos?: unknown }).todos)
       ? ((block.input as { todos: unknown[] }).todos as Array<{
           content?: string
           activeForm?: string
@@ -270,9 +271,7 @@ export async function* normalizeClaudeCodeStream(
           yield {
             type: 'item.completed',
             item: {
-              id: msg.message?.id
-                ? `${msg.message.id}:text`
-                : undefined,
+              id: msg.message?.id ? `${msg.message.id}:text` : undefined,
               type: 'agent_message',
               text
             }
@@ -281,10 +280,7 @@ export async function* normalizeClaudeCodeStream(
           continue
         }
 
-        if (
-          block.type === 'thinking' ||
-          block.type === 'extended_thinking'
-        ) {
+        if (block.type === 'thinking' || block.type === 'extended_thinking') {
           const text = block.thinking ?? ''
 
           if (text.trim() === '') continue
@@ -292,9 +288,7 @@ export async function* normalizeClaudeCodeStream(
           yield {
             type: 'item.completed',
             item: {
-              id: msg.message?.id
-                ? `${msg.message.id}:thinking`
-                : undefined,
+              id: msg.message?.id ? `${msg.message.id}:thinking` : undefined,
               type: 'reasoning',
               text
             }

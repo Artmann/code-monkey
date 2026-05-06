@@ -10,21 +10,21 @@ export function App() {
   useRoutePersistence()
 
   return (
-    <div className='flex h-screen min-h-0 flex-col bg-background'>
+    <div className="flex h-screen min-h-0 flex-col bg-background">
       <TabBar />
 
-      <div className='min-h-0 flex-1 overflow-hidden'>
+      <div className="min-h-0 flex-1 overflow-hidden">
         <Routes>
           <Route
-            path='/'
+            path="/"
             element={<EmptyState />}
           />
           <Route
-            path='/threads/:threadId'
+            path="/threads/:threadId"
             element={<AgentView />}
           />
           <Route
-            path='/settings'
+            path="/settings"
             element={<SettingsRoute />}
           />
         </Routes>

@@ -51,9 +51,7 @@ function buildApplicationMenu(): void {
   ]
 
   const template: MenuItemConstructorOptions[] = [
-    ...(isMac
-      ? ([{ role: 'appMenu' }] as MenuItemConstructorOptions[])
-      : []),
+    ...(isMac ? ([{ role: 'appMenu' }] as MenuItemConstructorOptions[]) : []),
     { label: 'File', submenu: fileSubmenu },
     { role: 'editMenu' },
     { role: 'viewMenu' },

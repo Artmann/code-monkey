@@ -1,19 +1,10 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient
-} from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 
 import { apiFetch, getApiBaseUrl } from '../lib/api-client'
 import { clearDraftStorage } from './use-draft'
 
-export type ThreadStatus =
-  | 'starting'
-  | 'running'
-  | 'idle'
-  | 'done'
-  | 'error'
+export type ThreadStatus = 'starting' | 'running' | 'idle' | 'done' | 'error'
 
 export type Thread = {
   id: string
@@ -45,8 +36,7 @@ export type ThreadResponse = {
 
 export const threadsKey = ['threads'] as const
 
-export const threadKey = (threadId: string) =>
-  ['thread', threadId] as const
+export const threadKey = (threadId: string) => ['thread', threadId] as const
 
 const SUBSCRIBED_EVENT_TYPES = [
   'prep',
@@ -95,14 +85,16 @@ export const derivePendingApproval = (
       continue
     }
 
-    const item = (event.payload as {
-      item?: {
-        id?: string
-        tool?: string
-        input?: unknown
-        summary?: string
-      }
-    } | null)?.item
+    const item = (
+      event.payload as {
+        item?: {
+          id?: string
+          tool?: string
+          input?: unknown
+          summary?: string
+        }
+      } | null
+    )?.item
 
     if (!item?.id || resolvedIds.has(item.id)) {
       continue
@@ -209,9 +201,7 @@ const appendEvent = (
   return {
     ...previous,
     thread: applyStatusFromEvent(previous.thread, event),
-    events: [...previous.events, event].sort(
-      (a, b) => a.sequence - b.sequence
-    )
+    events: [...previous.events, event].sort((a, b) => a.sequence - b.sequence)
   }
 }
 
@@ -234,6 +224,25 @@ export function useThreadStream(threadId: string | null | undefined) {
         queryClient.setQueryData<ThreadResponse | null>(
           threadKey(threadId),
           (previous) => appendEvent(previous, event)
+        )
+
+        // The threads list query feeds the TabBar's spinner. Mirror the
+        // status transition here so the tab stops spinning the moment the
+        // turn completes — without this it stays stuck on 'running' until
+        // the next list refetch.
+        queryClient.setQueryData<Thread[] | undefined>(
+          threadsKey,
+          (previous) => {
+            if (!previous) {
+              return previous
+            }
+
+            return previous.map((thread) =>
+              thread.id === threadId
+                ? applyStatusFromEvent(thread, event)
+                : thread
+            )
+          }
         )
       } catch {
         // ignore malformed payload
@@ -315,8 +324,7 @@ export function useUpdateThreadMutation() {
     onSuccess: (thread) => {
       queryClient.setQueryData<ThreadResponse | null>(
         threadKey(thread.id),
-        (previous) =>
-          previous ? { ...previous, thread } : previous
+        (previous) => (previous ? { ...previous, thread } : previous)
       )
 
       void queryClient.invalidateQueries({ queryKey: threadsKey })

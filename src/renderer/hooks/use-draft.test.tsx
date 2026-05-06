@@ -51,9 +51,7 @@ describe('useDraft', () => {
     })
 
     expect(result.current.text).toEqual('')
-    expect(
-      window.localStorage.getItem(`${STORAGE_PREFIX}thread-a`)
-    ).toBeNull()
+    expect(window.localStorage.getItem(`${STORAGE_PREFIX}thread-a`)).toBeNull()
   })
 
   test('switching threads loads the matching draft', () => {
@@ -98,9 +96,7 @@ describe('useDraft', () => {
       result.current.setText('')
     })
 
-    expect(
-      window.localStorage.getItem(`${STORAGE_PREFIX}thread-a`)
-    ).toBeNull()
+    expect(window.localStorage.getItem(`${STORAGE_PREFIX}thread-a`)).toBeNull()
   })
 })
 
@@ -115,9 +111,7 @@ describe('clearDraftStorage', () => {
 
     clearDraftStorage('thread-a')
 
-    expect(
-      window.localStorage.getItem(`${STORAGE_PREFIX}thread-a`)
-    ).toBeNull()
+    expect(window.localStorage.getItem(`${STORAGE_PREFIX}thread-a`)).toBeNull()
     expect(window.localStorage.getItem(`${STORAGE_PREFIX}thread-b`)).toEqual(
       'draft B'
     )

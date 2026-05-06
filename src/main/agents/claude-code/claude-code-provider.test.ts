@@ -304,37 +304,34 @@ describe('claude-code provider request classification', () => {
     ['Read', { file_path: '/tmp/x.ts' }, 'file_read'],
     ['WebFetch', { url: 'https://example.com' }, 'network'],
     ['WeirdUnknownTool', {}, 'other']
-  ])(
-    'classifies %s as %s',
-    async (tool, input, expectedKind) => {
-      const captured: CapturedOptions[] = []
-      const provider = await createClaudeCodeProvider(
-        { kind: 'claude-code', mode: 'cli', executablePath: null },
-        makeFakeSdk(captured)
-      )
+  ])('classifies %s as %s', async (tool, input, expectedKind) => {
+    const captured: CapturedOptions[] = []
+    const provider = await createClaudeCodeProvider(
+      { kind: 'claude-code', mode: 'cli', executablePath: null },
+      makeFakeSdk(captured)
+    )
 
-      const onApprovalRequest = vi.fn(async () => ({
-        decision: 'approve' as const
-      }))
+    const onApprovalRequest = vi.fn(async () => ({
+      decision: 'approve' as const
+    }))
 
-      const thread = provider.startThread({
-        workingDirectory: '/tmp',
-        onApprovalRequest
-      })
+    const thread = provider.startThread({
+      workingDirectory: '/tmp',
+      onApprovalRequest
+    })
 
-      const { events } = await thread.runStreamed('hi')
-      const iterator = events[Symbol.asyncIterator]()
+    const { events } = await thread.runStreamed('hi')
+    const iterator = events[Symbol.asyncIterator]()
 
-      const canUse = captured[0]?.canUseTool
+    const canUse = captured[0]?.canUseTool
 
-      void canUse?.(tool, input, {})
+    void canUse?.(tool, input, {})
 
-      const first = await iterator.next()
+    const first = await iterator.next()
 
-      expect(first.value).toMatchObject({
-        type: 'item.approval_requested',
-        item: expect.objectContaining({ kind: expectedKind })
-      })
-    }
-  )
+    expect(first.value).toMatchObject({
+      type: 'item.approval_requested',
+      item: expect.objectContaining({ kind: expectedKind })
+    })
+  })
 })

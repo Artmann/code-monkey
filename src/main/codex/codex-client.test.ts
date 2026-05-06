@@ -40,17 +40,19 @@ describe('buildCodexOptions', () => {
       apiKey: 'sk-secret'
     }
     let constructedOptions: unknown
-    const loader = vi.fn(async (): Promise<CodexSdkModule> => ({
-      Codex: class {
-        readonly kind = 'codex-instance'
-        readonly resumeThread = vi.fn()
-        readonly startThread = vi.fn()
+    const loader = vi.fn(
+      async (): Promise<CodexSdkModule> => ({
+        Codex: class {
+          readonly kind = 'codex-instance'
+          readonly resumeThread = vi.fn()
+          readonly startThread = vi.fn()
 
-        constructor(readonly options: BuiltCodexOptions) {
-          constructedOptions = options
+          constructor(readonly options: BuiltCodexOptions) {
+            constructedOptions = options
+          }
         }
-      }
-    }))
+      })
+    )
 
     await expect(createCodex(settings, loader)).resolves.toMatchObject({
       kind: 'codex-instance',

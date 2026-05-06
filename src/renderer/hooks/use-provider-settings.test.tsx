@@ -132,11 +132,12 @@ describe('useClearProviderMutation', () => {
   })
 
   test('DELETEs /settings/provider', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      })
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
     )
 
     vi.stubGlobal('fetch', fetchMock)

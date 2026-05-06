@@ -8,25 +8,28 @@ export interface SelectFolderResult {
 }
 
 export function registerDialogHandlers(): void {
-  ipcMain.handle('dialog:selectFolder', async (): Promise<SelectFolderResult> => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory', 'createDirectory']
-    })
+  ipcMain.handle(
+    'dialog:selectFolder',
+    async (): Promise<SelectFolderResult> => {
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory', 'createDirectory']
+      })
 
-    if (result.canceled || result.filePaths.length === 0) {
-      return { canceled: true, directoryPath: null, suggestedName: null }
+      if (result.canceled || result.filePaths.length === 0) {
+        return { canceled: true, directoryPath: null, suggestedName: null }
+      }
+
+      const directoryPath = result.filePaths[0] ?? null
+
+      if (!directoryPath) {
+        return { canceled: true, directoryPath: null, suggestedName: null }
+      }
+
+      return {
+        canceled: false,
+        directoryPath,
+        suggestedName: basename(directoryPath)
+      }
     }
-
-    const directoryPath = result.filePaths[0] ?? null
-
-    if (!directoryPath) {
-      return { canceled: true, directoryPath: null, suggestedName: null }
-    }
-
-    return {
-      canceled: false,
-      directoryPath,
-      suggestedName: basename(directoryPath)
-    }
-  })
+  )
 }

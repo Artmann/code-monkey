@@ -54,7 +54,7 @@ export function AgentView() {
 
   if (threadQuery.isLoading) {
     return (
-      <div className='flex h-full items-center justify-center text-[13px] text-[color:var(--fg-3)]'>
+      <div className="flex h-full items-center justify-center text-[13px] text-[color:var(--fg-3)]">
         Loading…
       </div>
     )
@@ -62,11 +62,11 @@ export function AgentView() {
 
   if (!thread) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-2 text-[13px] text-[color:var(--fg-3)]'>
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-[13px] text-[color:var(--fg-3)]">
         <p>This tab is no longer available.</p>
         <button
-          type='button'
-          className='underline'
+          type="button"
+          className="underline"
           onClick={() => navigate('/')}
         >
           Go home

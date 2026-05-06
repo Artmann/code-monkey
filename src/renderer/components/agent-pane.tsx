@@ -10,11 +10,7 @@ import { Link } from 'react-router-dom'
 
 import { useDraft } from '../hooks/use-draft'
 import { useStickToBottom } from '../hooks/use-stick-to-bottom'
-import type {
-  ComposerMode,
-  Thread,
-  ThreadEvent
-} from '../hooks/use-thread'
+import type { ComposerMode, Thread, ThreadEvent } from '../hooks/use-thread'
 import { cn } from '../lib/utils'
 import {
   AgentTranscript,
@@ -81,9 +77,9 @@ const ModeToggle = ({
 }) => {
   return (
     <div
-      role='radiogroup'
-      aria-label='Agent mode'
-      className='inline-flex items-center gap-0.5 rounded-full border border-[color:var(--line)] bg-transparent p-0.5'
+      role="radiogroup"
+      aria-label="Agent mode"
+      className="inline-flex items-center gap-0.5 rounded-full border border-[color:var(--line)] bg-transparent p-0.5"
     >
       {MODE_OPTIONS.map(({ value, label, Icon, hint }) => {
         const isActive = mode === value
@@ -91,8 +87,8 @@ const ModeToggle = ({
         return (
           <button
             key={value}
-            type='button'
-            role='radio'
+            type="button"
+            role="radio"
             aria-checked={isActive}
             title={hint}
             disabled={disabled}
@@ -106,8 +102,8 @@ const ModeToggle = ({
             )}
           >
             <Icon
-              aria-hidden='true'
-              className='size-3'
+              aria-hidden="true"
+              className="size-3"
             />
             {label}
           </button>
@@ -246,8 +242,8 @@ const Composer = ({
         // Re-mount the editor when switching threads so the new draft hydrates
         // cleanly without React fighting the contenteditable DOM state.
         key={threadId}
-        ariaLabel='Message composer'
-        placeholder='Tell the agent what to do…'
+        ariaLabel="Message composer"
+        placeholder="Tell the agent what to do…"
         initialText={text}
         disabled={disabled}
         onChange={handleComposerChange}
@@ -257,56 +253,56 @@ const Composer = ({
         )}
       />
       {hasImages ? (
-        <p className='px-2.5 pt-0.5 text-[11px] text-[color:var(--fg-3)]'>
+        <p className="px-2.5 pt-0.5 text-[11px] text-[color:var(--fg-3)]">
           {snapshot.imageCount === 1
             ? '1 image attached — only the text portion will be sent for now.'
             : `${snapshot.imageCount} images attached — only the text portion will be sent for now.`}
         </p>
       ) : null}
-      <div className='flex items-center justify-between gap-2 px-1.5 pb-1 pt-0'>
-        <div className='flex items-center gap-1.5'>
+      <div className="flex items-center justify-between gap-2 px-1.5 pb-1 pt-0">
+        <div className="flex items-center gap-1.5">
           <ModeToggle
             disabled={disabled || isRunning}
             mode={mode}
             onChange={onModeChange}
           />
           <span
-            className='inline-flex items-center gap-1.5 truncate rounded-full border border-[color:var(--line)] bg-transparent px-2 py-[3px] font-mono text-[11.5px] text-[color:var(--fg-2)]'
+            className="inline-flex items-center gap-1.5 truncate rounded-full border border-[color:var(--line)] bg-transparent px-2 py-[3px] font-mono text-[11.5px] text-[color:var(--fg-2)]"
             title={directoryLabel}
           >
             {directoryLabel}
           </span>
         </div>
 
-        <div className='flex items-center gap-1.5'>
-          <span className='inline-flex items-center rounded-[4px] border border-[color:var(--line)] bg-[color:var(--bg-3)] px-1.5 py-0.5 font-mono text-[10.5px] text-[color:var(--fg-3)]'>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex items-center rounded-[4px] border border-[color:var(--line)] bg-[color:var(--bg-3)] px-1.5 py-0.5 font-mono text-[10.5px] text-[color:var(--fg-3)]">
             {isRunning ? 'Esc' : '⌘↵'}
           </span>
           {isRunning ? (
             <Button
-              type='button'
-              size='sm'
-              variant='destructive'
+              type="button"
+              size="sm"
+              variant="destructive"
               onClick={() => onStop?.()}
-              className='h-7 gap-1.5 px-2.5 text-[12px]'
+              className="h-7 gap-1.5 px-2.5 text-[12px]"
             >
               <span>Stop</span>
               <Square
-                aria-hidden='true'
-                className='size-3 fill-current'
+                aria-hidden="true"
+                className="size-3 fill-current"
               />
             </Button>
           ) : (
             <Button
-              type='submit'
-              size='sm'
+              type="submit"
+              size="sm"
               disabled={disabled || !hasText}
-              className='h-7 gap-1.5 px-2.5 text-[12px]'
+              className="h-7 gap-1.5 px-2.5 text-[12px]"
             >
               <span>Send</span>
               <SendHorizontal
-                aria-hidden='true'
-                className='size-3'
+                aria-hidden="true"
+                className="size-3"
               />
             </Button>
           )}
@@ -333,12 +329,12 @@ const TranscriptScrollArea = ({
     useStickToBottom(events)
 
   return (
-    <div className='relative min-h-0 flex-1'>
+    <div className="relative min-h-0 flex-1">
       <div
         ref={scrollRef}
-        className='absolute inset-0 overflow-y-auto'
+        className="absolute inset-0 overflow-y-auto"
       >
-        <div className='mx-auto flex max-w-[760px] flex-col gap-3 px-6 py-5'>
+        <div className="mx-auto flex max-w-[760px] flex-col gap-3 px-6 py-5">
           <ApprovalActionsProvider value={onApprovalDecision ?? null}>
             <UserInputActionsProvider value={onUserInputDecision ?? null}>
               <AgentTranscript
@@ -353,16 +349,16 @@ const TranscriptScrollArea = ({
 
       {!isPinned && hasNewContent && (
         <Button
-          type='button'
-          variant='secondary'
-          size='icon'
+          type="button"
+          variant="secondary"
+          size="icon"
           onClick={() => scrollToBottom('smooth')}
-          aria-label='Scroll to latest'
-          className='absolute bottom-3 left-1/2 size-8 -translate-x-1/2 rounded-full shadow-md'
+          aria-label="Scroll to latest"
+          className="absolute bottom-3 left-1/2 size-8 -translate-x-1/2 rounded-full shadow-md"
         >
           <ChevronDown
-            aria-hidden='true'
-            className='size-4'
+            aria-hidden="true"
+            className="size-4"
           />
         </Button>
       )}
@@ -397,13 +393,13 @@ export function AgentPane({
   const directoryLabel = thread.directoryPath
 
   return (
-    <div className='flex h-full min-h-0 flex-1 flex-col overflow-hidden'>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {thread.status === 'error' && thread.errorMessage ? (
         <p
-          role='alert'
-          className='mx-auto w-full max-w-[760px] shrink-0 px-6 pt-3 text-[12px] text-[color:var(--destructive)]'
+          role="alert"
+          className="mx-auto w-full max-w-[760px] shrink-0 px-6 pt-3 text-[12px] text-[color:var(--destructive)]"
         >
-          <span className='block rounded-md border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-2'>
+          <span className="block rounded-md border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-2">
             {thread.errorMessage}
           </span>
         </p>
@@ -418,10 +414,10 @@ export function AgentPane({
       />
 
       {!providerConfigured && (
-        <p className='mx-auto w-full max-w-[760px] shrink-0 px-6 pb-1 text-[12px] text-[color:var(--accent)]'>
+        <p className="mx-auto w-full max-w-[760px] shrink-0 px-6 pb-1 text-[12px] text-[color:var(--accent)]">
           <Link
-            to='/settings'
-            className='underline'
+            to="/settings"
+            className="underline"
           >
             Configure an agent provider
           </Link>{' '}
@@ -429,7 +425,7 @@ export function AgentPane({
         </p>
       )}
 
-      <div className='shrink-0 px-6 pb-4 pt-2'>
+      <div className="shrink-0 px-6 pb-4 pt-2">
         <Composer
           directoryLabel={directoryLabel}
           disabled={composerDisabled}

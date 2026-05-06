@@ -1,8 +1,7 @@
 # Contributing
 
-Thanks for helping out. This document is for people who want to change the
-code. If you're just trying to use the app, read [README.md](./README.md)
-instead.
+Thanks for helping out. This document is for people who want to change the code.
+If you're just trying to use the app, read [README.md](./README.md) instead.
 
 ## Stack
 
@@ -27,9 +26,9 @@ pnpm install
 pnpm start       # launches electron-forge in dev mode
 ```
 
-better-sqlite3 is a native module. It must be compiled against Electron's
-Node ABI for the app to run and against the host Node ABI for Vitest. If
-tests fail with `NODE_MODULE_VERSION ...` mismatch, rebuild:
+better-sqlite3 is a native module. It must be compiled against Electron's Node
+ABI for the app to run and against the host Node ABI for Vitest. If tests fail
+with `NODE_MODULE_VERSION ...` mismatch, rebuild:
 
 ```sh
 rm -rf node_modules/better-sqlite3/build
@@ -66,8 +65,8 @@ pnpm lint
 pnpm test:run
 ```
 
-All three must be clean. CI runs the same checks on Node 22 and Node 24;
-see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+All three must be clean. CI runs the same checks on Node 22 and Node 24; see
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Coding conventions
 
@@ -90,9 +89,9 @@ Never write ad-hoc SQL. The flow is:
 2. Run `pnpm db:generate` — drizzle-kit emits
    `src/main/database/migrations/NNNN_<tag>.sql` and a meta snapshot.
 3. Read the generated SQL. SQLite can't drop `NOT NULL` in place, so drizzle
-   emits a `__new_table` rebuild; verify its `INSERT INTO __new_table SELECT
-   ... FROM table` clause for any new nullable columns (existing rows need
-   `NULL` in them).
+   emits a `__new_table` rebuild; verify its
+   `INSERT INTO __new_table SELECT ... FROM table` clause for any new nullable
+   columns (existing rows need `NULL` in them).
 4. Commit the schema, migration, and snapshot together.
 
 Migrations run automatically at startup via `src/main/database/migrate.ts`.
@@ -104,8 +103,8 @@ Migrations run automatically at startup via `src/main/database/migrate.ts`.
   `src/renderer/test-setup.ts`.
 - Main-process tests hit an in-memory SQLite database and apply the real
   migrations via `drizzle-orm/better-sqlite3/migrator`.
-- Prefer `toEqual` over `toBe`, and compare whole objects rather than
-  picking a single property.
+- Prefer `toEqual` over `toBe`, and compare whole objects rather than picking a
+  single property.
 
 ## Publishing
 
@@ -117,9 +116,9 @@ Two independent release paths:
   pnpm release
   ```
 
-  Runs `pnpm build` (typecheck + lint + tests + `electron-forge make`)
-  then `electron-forge publish` to upload `.exe` / `.dmg` / `.deb` /
-  `.rpm` artifacts.
+  Runs `pnpm build` (typecheck + lint + tests + `electron-forge make`) then
+  `electron-forge publish` to upload `.exe` / `.dmg` / `.deb` / `.rpm`
+  artifacts.
 
 - **npm tarball** (so users can `npx @artmann/codemonkey`):
 
@@ -128,10 +127,10 @@ Two independent release paths:
   ```
 
   pnpm's built-in `publish` fires the `prepack` hook, which runs
-  `scripts/build-npm.mjs` to populate `dist/`. The published tarball
-  contains only `bin/`, `dist/`, `scripts/postinstall.mjs`, `README.md`,
-  and `LICENSE`. On install, `scripts/postinstall.mjs` rebuilds
-  `better-sqlite3` against the user's Electron.
+  `scripts/build-npm.mjs` to populate `dist/`. The published tarball contains
+  only `bin/`, `dist/`, `scripts/postinstall.mjs`, `README.md`, and `LICENSE`.
+  On install, `scripts/postinstall.mjs` rebuilds `better-sqlite3` against the
+  user's Electron.
 
 Verify the tarball contents locally before pushing a real release:
 
@@ -148,10 +147,10 @@ pnpm pack --dry-run
 
 ## Design handoffs
 
-UI work sometimes starts from a design bundle exported from Claude Design.
-The bundle is fetched over HTTPS, extracted, and read as plain HTML/CSS/JS —
-the final app implements the visuals in React + Tailwind rather than copying
-the prototype's structure. See `src/renderer/components/agent-*.tsx`,
+UI work sometimes starts from a design bundle exported from Claude Design. The
+bundle is fetched over HTTPS, extracted, and read as plain HTML/CSS/JS — the
+final app implements the visuals in React + Tailwind rather than copying the
+prototype's structure. See `src/renderer/components/agent-*.tsx`,
 `state-pill.tsx`, and `globals.css` for an example of the Balanced-variant
 implementation.
 

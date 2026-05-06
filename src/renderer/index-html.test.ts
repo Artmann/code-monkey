@@ -4,7 +4,10 @@ import { describe, expect, test } from 'vitest'
 
 describe('renderer html entry', () => {
   test('uses a relative module entry for file:// builds', () => {
-    const html = readFileSync(resolve(__dirname, '..', '..', 'index.html'), 'utf8')
+    const html = readFileSync(
+      resolve(__dirname, '..', '..', 'index.html'),
+      'utf8'
+    )
 
     expect(html).toContain('src="./src/renderer/index.tsx"')
   })

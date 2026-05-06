@@ -9,9 +9,7 @@ type PendingProps = {
   tool: string
   summary: string
   onDecide: (
-    decision:
-      | { decision: 'approve' }
-      | { decision: 'reject'; reason?: string }
+    decision: { decision: 'approve' } | { decision: 'reject'; reason?: string }
   ) => void
 }
 
@@ -38,32 +36,32 @@ function PendingCard({ tool, summary, onDecide }: PendingProps) {
   const [reason, setReason] = useState('')
 
   return (
-    <div className='flex flex-col gap-3 rounded-xl border border-banana/50 bg-banana/5 px-4 py-3'>
-      <div className='flex items-baseline gap-2'>
-        <span className='font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana'>
+    <div className="flex flex-col gap-3 rounded-xl border border-banana/50 bg-banana/5 px-4 py-3">
+      <div className="flex items-baseline gap-2">
+        <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana">
           Approval needed
         </span>
-        <span className='font-mono text-[11px] text-muted-foreground'>
+        <span className="font-mono text-[11px] text-muted-foreground">
           {tool}
         </span>
       </div>
 
-      <div className='whitespace-pre-wrap break-words font-mono text-[12.5px] text-foreground'>
+      <div className="whitespace-pre-wrap break-words font-mono text-[12.5px] text-foreground">
         {summary}
       </div>
 
       {mode === 'rejecting' ? (
-        <div className='flex flex-col gap-2'>
+        <div className="flex flex-col gap-2">
           <Textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            placeholder='Why reject? (optional — will be sent to the agent)'
-            className='min-h-[60px] resize-none text-[13px]'
+            placeholder="Why reject? (optional — will be sent to the agent)"
+            className="min-h-[60px] resize-none text-[13px]"
           />
-          <div className='flex gap-2'>
+          <div className="flex gap-2">
             <Button
-              size='sm'
-              variant='outline'
+              size="sm"
+              variant="outline"
               onClick={() => {
                 setMode('idle')
                 setReason('')
@@ -72,8 +70,8 @@ function PendingCard({ tool, summary, onDecide }: PendingProps) {
               Cancel
             </Button>
             <Button
-              size='sm'
-              variant='destructive'
+              size="sm"
+              variant="destructive"
               onClick={() =>
                 onDecide({
                   decision: 'reject',
@@ -86,16 +84,16 @@ function PendingCard({ tool, summary, onDecide }: PendingProps) {
           </div>
         </div>
       ) : (
-        <div className='flex gap-2'>
+        <div className="flex gap-2">
           <Button
-            size='sm'
+            size="sm"
             onClick={() => onDecide({ decision: 'approve' })}
           >
             Approve
           </Button>
           <Button
-            size='sm'
-            variant='outline'
+            size="sm"
+            variant="outline"
             onClick={() => setMode('rejecting')}
           >
             Reject
@@ -119,10 +117,10 @@ function ResolvedRow({ tool, summary, decision, reason }: ResolvedProps) {
       )}
     >
       <span>{approved ? '✓ Approved' : '✗ Rejected'}</span>
-      <span className='font-mono text-[11px]'>{tool}</span>
-      <span className='truncate font-mono text-[11px]'>{summary}</span>
+      <span className="font-mono text-[11px]">{tool}</span>
+      <span className="truncate font-mono text-[11px]">{summary}</span>
       {!approved && reason ? (
-        <span className='ml-auto italic'>— {reason}</span>
+        <span className="ml-auto italic">— {reason}</span>
       ) : null}
     </div>
   )

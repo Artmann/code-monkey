@@ -16,11 +16,11 @@ transcripts never leave the machine.
   markdown descriptions.
 - **Per-task agent.** "Start Work" checks out a `code-monkey/<task-id>` branch
   in a sandboxed worktree, hands it to the agent, and streams every message,
-  tool call, and file change back into the app. "Merge to Main" auto-commits
-  the result when you approve.
+  tool call, and file change back into the app. "Merge to Main" auto-commits the
+  result when you approve.
 - **Project agent.** A separate chat in the project's working directory for
-  conversations that don't belong to any one task. Multiple threads per
-  project with a history dropdown.
+  conversations that don't belong to any one task. Multiple threads per project
+  with a history dropdown.
 - **Agent view.** Grouped activity strips (no more terminal-log noise),
   markdown-rendered agent messages with a streaming cursor, and a state pill
   (Idle / Thinking / Running / Waiting / Blocked / Done).
@@ -37,13 +37,12 @@ If you have Node.js **22+** on your `PATH`:
 npx @artmann/codemonkey
 ```
 
-That downloads the package, installs Electron + its native deps, and
-launches the desktop app. First run takes a minute while
-`better-sqlite3` rebuilds against the installed Electron; subsequent runs
-are instant.
+That downloads the package, installs Electron + its native deps, and launches
+the desktop app. First run takes a minute while `better-sqlite3` rebuilds
+against the installed Electron; subsequent runs are instant.
 
-Prefer a signed installer? Grab a `.exe` / `.dmg` / `.deb` / `.rpm` from
-the [Releases](https://github.com/Artmann/code-monkey/releases) page.
+Prefer a signed installer? Grab a `.exe` / `.dmg` / `.deb` / `.rpm` from the
+[Releases](https://github.com/Artmann/code-monkey/releases) page.
 
 ## Requirements (development)
 
@@ -66,25 +65,24 @@ pnpm install
 pnpm start
 ```
 
-On first launch, open **Settings** and configure the Codex provider (CLI
-re-use or API key). Then create a project pointing at a git repository on
-disk.
+On first launch, open **Settings** and configure the Codex provider (CLI re-use
+or API key). Then create a project pointing at a git repository on disk.
 
 ## Scripts
 
-| Script                 | What it does                                       |
-| ---------------------- | -------------------------------------------------- |
-| `pnpm start`           | Launch the Electron dev build via electron-forge   |
-| `pnpm test`            | Run vitest in watch mode                           |
-| `pnpm test:run`        | Run the full test suite once                       |
-| `pnpm lint`            | Run ESLint across `src/`                           |
-| `pnpm typecheck`       | Run `tsc --noEmit`                                 |
-| `pnpm db:generate`     | Generate a drizzle migration from `schema.ts`      |
-| `pnpm package`         | Produce an unpacked Electron app                   |
-| `pnpm make`            | Produce platform installers                        |
-| `pnpm build`           | Run typecheck + lint + tests and produce installers |
-| `pnpm build:npm`       | Produce `dist/` for the npm tarball (used by `prepack`) |
-| `pnpm release`         | Build then publish a release via electron-forge    |
+| Script             | What it does                                            |
+| ------------------ | ------------------------------------------------------- |
+| `pnpm start`       | Launch the Electron dev build via electron-forge        |
+| `pnpm test`        | Run vitest in watch mode                                |
+| `pnpm test:run`    | Run the full test suite once                            |
+| `pnpm lint`        | Run ESLint across `src/`                                |
+| `pnpm typecheck`   | Run `tsc --noEmit`                                      |
+| `pnpm db:generate` | Generate a drizzle migration from `schema.ts`           |
+| `pnpm package`     | Produce an unpacked Electron app                        |
+| `pnpm make`        | Produce platform installers                             |
+| `pnpm build`       | Run typecheck + lint + tests and produce installers     |
+| `pnpm build:npm`   | Produce `dist/` for the npm tarball (used by `prepack`) |
+| `pnpm release`     | Build then publish a release via electron-forge         |
 
 ## Data locations
 

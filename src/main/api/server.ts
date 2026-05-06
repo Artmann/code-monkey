@@ -6,10 +6,7 @@ import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
 import { secureHeaders } from 'hono/secure-headers'
 
-import type {
-  AgentRunner,
-  PersistedEvent
-} from '../codex/agent-runner'
+import type { AgentRunner, PersistedEvent } from '../codex/agent-runner'
 import type { EventBroker } from '../codex/event-broker'
 import type { SafeStorageLike } from '../codex/provider-settings'
 import * as schema from '../database/schema'
@@ -53,11 +50,8 @@ export async function startApiServer(
   })
 
   return new Promise((resolve) => {
-    serve(
-      { fetch: app.fetch, hostname: '127.0.0.1', port: 0 },
-      (info) => {
-        resolve(info.port)
-      }
-    )
+    serve({ fetch: app.fetch, hostname: '127.0.0.1', port: 0 }, (info) => {
+      resolve(info.port)
+    })
   })
 }

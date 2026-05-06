@@ -60,13 +60,15 @@ export function renderWithProviders(
 type FetchMock = ReturnType<typeof vi.fn>
 
 export function mockApiBridge(port = 55_555) {
-  (window as unknown as {
-    codeMonkey: {
-      apiPort: number
-      selectFolder: FetchMock
-      onNewTabRequested: FetchMock
+  ;(
+    window as unknown as {
+      codeMonkey: {
+        apiPort: number
+        selectFolder: FetchMock
+        onNewTabRequested: FetchMock
+      }
     }
-  }).codeMonkey = {
+  ).codeMonkey = {
     apiPort: port,
     selectFolder: vi.fn(),
     onNewTabRequested: vi.fn(() => {
