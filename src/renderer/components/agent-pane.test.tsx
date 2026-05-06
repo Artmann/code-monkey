@@ -85,7 +85,7 @@ describe('AgentPane', () => {
     )
 
     expect(
-      screen.getByPlaceholderText(/type a follow-up/i)
+      screen.getByPlaceholderText(/follow-up changes/i)
     ).not.toBeDisabled()
   })
 
@@ -104,7 +104,7 @@ describe('AgentPane', () => {
       />
     )
 
-    const textbox = screen.getByPlaceholderText(/type a follow-up/i)
+    const textbox = screen.getByPlaceholderText(/follow-up changes/i)
 
     await user.type(textbox, 'what next?')
     await user.click(screen.getByRole('button', { name: /send/i }))
@@ -161,7 +161,7 @@ describe('AgentPane', () => {
 
     // The composer stays put so the user can still nudge the agent.
     expect(
-      screen.getByPlaceholderText(/type a follow-up/i)
+      screen.getByPlaceholderText(/follow-up changes/i)
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /^approve$/i }))

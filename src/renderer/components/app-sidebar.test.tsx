@@ -1,5 +1,6 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import invariant from 'tiny-invariant'
 import { describe, expect, it, vi } from 'vitest'
 import { buildProject, renderWithProviders } from '../test-utils'
 import { AppSidebar } from './app-sidebar'
@@ -44,7 +45,12 @@ describe('AppSidebar', () => {
 
     renderSidebar({ projects: [], onAddProject })
 
-    await user.click(screen.getByRole('button', { name: /new project/i }))
+    const [firstButton] = screen.getAllByRole('button', {
+      name: /new project/i
+    })
+    invariant(firstButton, 'expected at least one new-project button')
+
+    await user.click(firstButton)
 
     expect(onAddProject).toHaveBeenCalledOnce()
   })

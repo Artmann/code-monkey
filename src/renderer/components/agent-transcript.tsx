@@ -7,8 +7,7 @@ import {
   FilePlus,
   FileText,
   Loader2,
-  Terminal,
-  User
+  Terminal
 } from 'lucide-react'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -686,8 +685,7 @@ function ApprovalNode({
 }
 
 function UserMessageCard({
-  text,
-  timestamp
+  text
 }: {
   text: string
   timestamp: string | null
@@ -699,20 +697,8 @@ function UserMessageCard({
       transition={{ duration: 0.2 }}
       className='flex justify-end'
     >
-      <div className='max-w-[85%] rounded-xl border border-muted-foreground/20 bg-muted/40 px-4 py-3'>
-        <div className='mb-1 flex items-center gap-2 font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>
-          <User
-            aria-hidden='true'
-            className='size-3'
-          />
-          <span>You</span>
-          {timestamp ? (
-            <span className='font-mono font-normal normal-case tracking-normal'>
-              · {timestamp}
-            </span>
-          ) : null}
-        </div>
-        <div className='prose prose-sm max-w-none text-[14px] leading-relaxed text-foreground dark:prose-invert'>
+      <div className='max-w-[78%] rounded-[14px] rounded-br-[4px] bg-[color:var(--bg-3)] px-3 py-2'>
+        <div className='prose prose-sm max-w-none text-[13.5px] leading-[1.5] text-[color:var(--fg)] dark:prose-invert'>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
         </div>
       </div>
@@ -788,39 +774,39 @@ function ActivityStrip({
         type='button'
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'group flex w-full items-center gap-3 rounded-lg border border-dashed px-3.5 py-2 text-left text-xs text-muted-foreground transition-colors',
-          'hover:bg-card hover:border-solid hover:text-foreground',
-          running && 'border-solid bg-card/60'
+          'group flex w-full items-center gap-2 rounded-md border border-[color:var(--line)] bg-[color:var(--bg-2)] px-2.5 py-1.5 text-left text-[12px] text-[color:var(--fg-2)] transition-colors',
+          'self-start hover:bg-[color:var(--bg-3)]'
         )}
       >
         <span
           aria-hidden='true'
           className={cn(
-            'inline-flex size-1.5 shrink-0 rounded-full bg-muted-foreground',
-            running && 'bg-banana animate-banana-pulse'
+            'h-3.5 w-[2px] shrink-0 rounded-[1px] bg-[color:var(--accent)]',
+            running && 'animate-attention-pulse'
           )}
         />
 
-        <span className='flex-1 truncate'>
-          <span className='font-medium text-foreground'>
-            {running ? 'Working' : 'Activity'}
-          </span>
-          <span className='text-muted-foreground'> · {summary}</span>
+        <span className='font-mono text-[11.5px] text-[color:var(--fg)]'>
+          {running ? 'Working' : 'Activity'}
+        </span>
+        <span className='text-[color:var(--fg-4)]'>·</span>
+        <span className='truncate text-[color:var(--fg-3)]'>
+          {summary}
           {failed > 0 ? (
-            <span className='ml-2 text-[color:var(--destructive)]'>
+            <span className='ml-1 text-[color:var(--destructive)]'>
               · {failed} failed
             </span>
           ) : null}
         </span>
 
-        <span className='inline-flex items-center gap-1'>
+        <span className='ml-2 inline-flex items-center gap-1'>
           {steps.slice(0, 6).map((step) => {
             const Icon = toolIconFor(step.tool)
             return (
               <span
                 key={step.key}
                 className={cn(
-                  'inline-grid size-5 place-items-center rounded-md border bg-muted/50',
+                  'inline-grid size-[18px] place-items-center rounded-[4px] border border-[color:var(--line)] bg-[color:var(--bg)] text-[color:var(--fg-3)]',
                   !step.ok &&
                     'border-[color:var(--destructive)]/40 bg-[color:var(--destructive)]/10 text-[color:var(--destructive)]'
                 )}
@@ -837,12 +823,12 @@ function ActivityStrip({
         {open ? (
           <ChevronDown
             aria-hidden='true'
-            className='size-3 shrink-0'
+            className='size-3 shrink-0 text-[color:var(--fg-3)]'
           />
         ) : (
           <ChevronRight
             aria-hidden='true'
-            className='size-3 shrink-0'
+            className='size-3 shrink-0 text-[color:var(--fg-3)]'
           />
         )}
       </button>

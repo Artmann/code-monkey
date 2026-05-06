@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Filter, MoreHorizontal, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import {
@@ -10,6 +10,7 @@ import type { Project } from '../hooks/use-projects'
 import {
   useProjectTaskStream,
   useTasksQuery,
+  type Task,
   type TaskStatus
 } from '../hooks/use-tasks'
 import { cn } from '../lib/utils'
@@ -18,13 +19,18 @@ import { ProjectAgentView } from './project-agent-view'
 import { TaskList } from './task-list'
 import { TaskView } from './task-view'
 import { Button } from './ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { SidebarTrigger } from './ui/sidebar'
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
 
 interface ProjectViewProps {
   project: Project | null
 }
 
 type ActiveTab = 'tasks' | 'agent'
+
+function countActiveTasks(tasks: Task[]) {
+  return tasks.filter((task) => task.status !== 'done').length
+}
 
 export function ProjectView({ project }: ProjectViewProps) {
   const tasksQuery = useTasksQuery(project?.id)
@@ -51,14 +57,12 @@ export function ProjectView({ project }: ProjectViewProps) {
   const [isDialogOpen, setDialogOpen] = useState(false)
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo')
 
-  // Remember the pathname of the agent tab (for thread selection) so switching
-  // back to it restores the last selected thread. The tasks tab pathname is
-  // just the project root, so no memory is needed for it. The selected task
-  // lives in `?task=` and is preserved across tab switches below.
   const lastAgentPathRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!project) return
+    if (!project) {
+      return
+    }
 
     if (activeTab === 'agent') {
       lastAgentPathRef.current = location.pathname
@@ -94,8 +98,7 @@ export function ProjectView({ project }: ProjectViewProps) {
   if (!project) {
     return (
       <div className='flex h-full flex-1 flex-col items-center justify-center gap-3 p-8'>
-        <span className='text-4xl opacity-40 select-none'>🦍</span>
-        <p className='text-muted-foreground'>
+        <p className='text-[color:var(--fg-3)]'>
           Select a project from the sidebar.
         </p>
       </div>
@@ -103,9 +106,11 @@ export function ProjectView({ project }: ProjectViewProps) {
   }
 
   function onTabChange(next: string) {
-    if (!project) return
+    if (!project) {
+      return
+    }
 
-    const search = location.search // preserve ?task= across tab switches
+    const search = location.search
 
     if (next === 'agent') {
       const pathname =
@@ -127,32 +132,105 @@ export function ProjectView({ project }: ProjectViewProps) {
     )
   }
 
+  const totalCount = tasks.length
+  const activeCount = countActiveTasks(tasks)
+  const tabLabel = activeTab === 'agent' ? 'Agent' : 'Tasks'
+
   return (
-    <div className='flex h-full min-h-0 flex-col overflow-hidden'>
-      <div className='flex items-center justify-between gap-4 border-b px-6 py-5'>
-        <div className='flex min-w-0 flex-col gap-1'>
-          <h1 className='font-display text-2xl font-bold tracking-tight'>
-            {project.name}
-          </h1>
-          <p
-            className='truncate font-mono text-xs text-muted-foreground'
-            title={project.directoryPath}
+    <div className='flex h-full min-h-0 flex-col overflow-hidden bg-background'>
+      <div className='flex h-11 shrink-0 items-center justify-between gap-3 border-b border-[color:var(--line)] px-4'>
+        <div className='flex items-center gap-2.5'>
+          <SidebarTrigger className='size-6 text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]' />
+          <nav
+            aria-label='Breadcrumb'
+            className='flex items-center gap-1.5 text-[13px]'
           >
-            {project.directoryPath}
-          </p>
+            <span className='text-[color:var(--fg-3)]'>{project.name}</span>
+            <span className='text-[color:var(--fg-4)]'>/</span>
+            <span className='font-medium text-[color:var(--fg)]'>
+              {tabLabel}
+            </span>
+          </nav>
         </div>
 
-        {activeTab === 'tasks' ? (
-          <Button
-            size='sm'
-            onClick={() => openDialog('todo')}
-            className='font-display font-semibold'
-          >
-            <Plus />
-            New task
-          </Button>
-        ) : null}
+        <div className='flex items-center gap-1'>
+          {activeTab === 'tasks' ? (
+            <>
+              <button
+                type='button'
+                aria-label='Filter'
+                className='inline-flex size-6 items-center justify-center rounded-md text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
+              >
+                <Filter
+                  aria-hidden='true'
+                  className='size-3.5'
+                />
+              </button>
+              <button
+                type='button'
+                aria-label='More'
+                className='inline-flex size-6 items-center justify-center rounded-md text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
+              >
+                <MoreHorizontal
+                  aria-hidden='true'
+                  className='size-3.5'
+                />
+              </button>
+              <Button
+                size='sm'
+                onClick={() => openDialog('todo')}
+                className='ml-1 h-7 gap-1 px-2.5'
+              >
+                <Plus
+                  aria-hidden='true'
+                  className='size-3.5'
+                />
+                New task
+              </Button>
+            </>
+          ) : null}
+        </div>
       </div>
+
+      <div className='flex shrink-0 items-center justify-between gap-3 border-b border-[color:var(--line)] px-4 py-1.5'>
+        <Tabs
+          value={activeTab}
+          onValueChange={onTabChange}
+          className='gap-0'
+        >
+          <TabsList className='gap-0.5 bg-transparent p-0'>
+            <TabsTrigger
+              value='tasks'
+              className='h-7 gap-1.5'
+            >
+              <span>Tasks</span>
+              <span className='inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[color:var(--bg-3)] px-1.5 text-[10.5px] font-medium tabular-nums text-[color:var(--fg-3)] data-[state=active]:bg-[color:var(--bg)]'>
+                {totalCount}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger
+              value='agent'
+              className='h-7'
+            >
+              Agent
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <span
+          className='inline-flex max-w-[40ch] items-center gap-1 truncate rounded-md border border-[color:var(--line)] bg-[color:var(--bg-3)] px-2 py-[3px] font-mono text-[11px] text-[color:var(--fg-3)]'
+          title={project.directoryPath}
+        >
+          {project.directoryPath}
+        </span>
+      </div>
+
+      {/* keep `activeCount` reachable for Active filter wiring later */}
+      <span
+        className='hidden'
+        data-active-count={activeCount}
+        aria-hidden='true'
+      />
 
       <div className='flex min-h-0 flex-1 overflow-hidden'>
         <div
@@ -161,39 +239,18 @@ export function ProjectView({ project }: ProjectViewProps) {
             isSplit ? 'flex-none basis-1/2' : 'flex-1 basis-full'
           )}
         >
-          <Tabs
-            value={activeTab}
-            onValueChange={onTabChange}
-            className='flex min-h-0 flex-1 flex-col gap-0 overflow-hidden'
-          >
-            <div className='border-b px-6 py-2'>
-              <TabsList>
-                <TabsTrigger value='tasks'>Tasks</TabsTrigger>
-                <TabsTrigger value='agent'>Agent</TabsTrigger>
-              </TabsList>
+          {activeTab === 'tasks' ? (
+            <div className='flex min-h-0 flex-1 flex-col overflow-y-auto'>
+              <TaskList
+                projectId={project.id}
+                tasks={tasks}
+                onRequestCreate={openDialog}
+                selectedTaskId={selectedTask?.id ?? null}
+              />
             </div>
-
-            <TabsContent
-              value='tasks'
-              className='flex min-h-0 flex-1 overflow-y-auto'
-            >
-              <div className='flex min-h-0 flex-1 flex-col'>
-                <TaskList
-                  projectId={project.id}
-                  tasks={tasks}
-                  onRequestCreate={openDialog}
-                  selectedTaskId={selectedTask?.id ?? null}
-                />
-              </div>
-            </TabsContent>
-
-            <TabsContent
-              value='agent'
-              className='flex min-h-0 flex-1 overflow-hidden'
-            >
-              <ProjectAgentView project={project} />
-            </TabsContent>
-          </Tabs>
+          ) : (
+            <ProjectAgentView project={project} />
+          )}
         </div>
 
         {selectedTask ? (

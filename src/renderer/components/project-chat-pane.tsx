@@ -1,4 +1,6 @@
-import { ChevronDown, History, Plus } from 'lucide-react'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { GitBranch, History, Plus, RefreshCw } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import type { Project } from '../hooks/use-projects'
@@ -9,13 +11,11 @@ import {
   useStartProjectThreadMutation,
   useThreadQuery,
   useThreadStream,
-  type Thread
+  type ThreadStatus
 } from '../hooks/use-thread'
 import { apiFetch } from '../lib/api-client'
-import { cn } from '../lib/utils'
 import { AgentPane } from './agent-pane'
 import type { ApprovalDecisionShape } from './agent-transcript'
-import { StatePill } from './state-pill'
 import { Button } from './ui/button'
 import {
   DropdownMenu,
@@ -25,33 +25,42 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from './ui/dropdown-menu'
+import {
+  StatusDot,
+  statusFromThreadStatus
+} from './ui/status-dot'
+
+dayjs.extend(relativeTime)
 
 interface ProjectChatPaneProps {
   project: Project
   threadId: string | null
 }
 
-const relativeTime = (iso: string): string => {
-  const then = new Date(iso).getTime()
+function formatRelative(value: string): string {
+  const date = dayjs(value)
 
-  if (Number.isNaN(then)) return ''
+  if (!date.isValid()) {
+    return ''
+  }
 
-  const seconds = Math.max(0, Math.floor((Date.now() - then) / 1000))
-
-  if (seconds < 60) return `${seconds}s ago`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return date.fromNow()
 }
 
-const statusDotColor = (status: Thread['status']): string => {
-  if (status === 'running' || status === 'starting') return 'bg-banana'
-  if (status === 'error') return 'bg-[color:var(--ctp-red)]'
-  if (status === 'done') return 'bg-[color:var(--ctp-green)]'
-  return 'bg-muted-foreground/60'
+function statusLabel(status: ThreadStatus): string {
+  if (status === 'running' || status === 'starting') {
+    return 'Running'
+  }
+
+  if (status === 'error') {
+    return 'Error'
+  }
+
+  if (status === 'done') {
+    return 'Done'
+  }
+
+  return 'Idle'
 }
 
 export function ProjectChatPane({
@@ -72,7 +81,7 @@ export function ProjectChatPane({
   const events = threadQuery.data?.events ?? []
   const providerConfigured = Boolean(providerQuery.data)
   const threads = threadsQuery.data ?? []
-  const otherThreads = threads.filter((t) => t.id !== threadId)
+  const otherThreads = threads.filter((entry) => entry.id !== threadId)
 
   // No threadId in the URL = compose-new mode. The composer is live and ready
   // to send; we don't pre-render a history list.
@@ -109,7 +118,9 @@ export function ProjectChatPane({
     requestId: string,
     decision: ApprovalDecisionShape
   ) {
-    if (!threadId) return
+    if (!threadId) {
+      return
+    }
 
     void apiFetch(`/threads/${threadId}/approvals/${requestId}`, {
       method: 'POST',
@@ -121,7 +132,9 @@ export function ProjectChatPane({
     requestId: string,
     answers: Record<string, string>
   ) {
-    if (!threadId) return
+    if (!threadId) {
+      return
+    }
 
     void apiFetch(`/threads/${threadId}/user-inputs/${requestId}`, {
       method: 'POST',
@@ -143,29 +156,54 @@ export function ProjectChatPane({
     })
   }
 
-  const title = isNew
-    ? 'New conversation'
-    : thread?.branchName
-      ? `on ${thread.branchName}`
-      : 'Conversation'
+  function onRefresh() {
+    void threadQuery.refetch()
+    void threadsQuery.refetch()
+  }
+
+  const branchName = thread?.branchName ?? 'main'
+  const status = thread?.status ?? 'idle'
+  const dotKey = statusFromThreadStatus(status)
 
   return (
     <div className='flex h-full min-h-0 w-full flex-1 flex-col bg-background'>
-      <div className='flex items-center gap-3 border-b px-5 py-2.5'>
-        <h2 className='truncate font-display text-[14px] font-semibold tracking-tight'>
-          {title}
-        </h2>
+      <div className='flex shrink-0 items-center justify-between border-b border-[color:var(--line)] px-4 py-2'>
+        <div className='flex min-w-0 items-center gap-2 text-[12.5px] text-[color:var(--fg-2)]'>
+          <GitBranch
+            aria-hidden='true'
+            className='size-3.5 shrink-0 text-[color:var(--fg-3)]'
+          />
+          <span className='text-[color:var(--fg-3)]'>on</span>
+          <code className='inline-flex items-center rounded-[4px] border border-[color:var(--line)] bg-[color:var(--kbd-bg)] px-1.5 py-px font-mono text-[11.5px] text-[color:var(--fg)]'>
+            {branchName}
+          </code>
+          {thread ? (
+            <>
+              <span className='text-[color:var(--fg-4)]'>·</span>
+              <StatusDot
+                status={dotKey}
+                size={12}
+              />
+              <span className='text-[color:var(--fg-2)]'>
+                {statusLabel(status)}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className='text-[color:var(--fg-4)]'>·</span>
+              <span className='text-[color:var(--fg-3)]'>New conversation</span>
+            </>
+          )}
+        </div>
 
-        <div className='ml-auto flex items-center gap-2'>
-          {thread ? <StatePill thread={thread} /> : null}
-
+        <div className='flex items-center gap-1'>
           <Button
             type='button'
             size='sm'
             variant='outline'
             onClick={onNewThread}
             disabled={isNew}
-            className='h-7 gap-1.5 px-2.5 text-xs'
+            className='h-7 gap-1.5 px-2.5 text-[12px]'
           >
             <Plus
               aria-hidden='true'
@@ -176,23 +214,17 @@ export function ProjectChatPane({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
+              <button
                 type='button'
-                size='sm'
-                variant='ghost'
                 disabled={threads.length === 0}
                 aria-label='Previous threads'
-                className='h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground'
+                className='inline-flex size-7 items-center justify-center rounded-md text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)] disabled:cursor-not-allowed disabled:opacity-50'
               >
                 <History
                   aria-hidden='true'
                   className='size-3.5'
                 />
-                <ChevronDown
-                  aria-hidden='true'
-                  className='size-3'
-                />
-              </Button>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align='end'
@@ -201,7 +233,7 @@ export function ProjectChatPane({
               <DropdownMenuLabel>Previous threads</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {otherThreads.length === 0 ? (
-                <div className='px-2 py-3 text-center text-xs text-muted-foreground'>
+                <div className='px-2 py-3 text-center text-[12px] text-[color:var(--fg-3)]'>
                   No other threads yet.
                 </div>
               ) : (
@@ -211,19 +243,18 @@ export function ProjectChatPane({
                     onSelect={() => onSelectHistoryThread(item.id)}
                     className='flex items-start gap-2.5 py-2'
                   >
-                    <span
-                      aria-hidden='true'
-                      className={cn(
-                        'mt-1 inline-block size-1.5 shrink-0 rounded-full',
-                        statusDotColor(item.status)
-                      )}
-                    />
+                    <span className='mt-1 shrink-0'>
+                      <StatusDot
+                        status={statusFromThreadStatus(item.status)}
+                        size={10}
+                      />
+                    </span>
                     <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                      <span className='truncate font-mono text-[11.5px] text-foreground'>
+                      <span className='truncate font-mono text-[11.5px] text-[color:var(--fg)]'>
                         {item.branchName ?? 'Project thread'}
                       </span>
-                      <span className='text-[10.5px] text-muted-foreground'>
-                        {relativeTime(item.lastActivityAt)}
+                      <span className='text-[10.5px] text-[color:var(--fg-3)]'>
+                        {formatRelative(item.lastActivityAt)}
                       </span>
                     </div>
                   </DropdownMenuItem>
@@ -231,10 +262,22 @@ export function ProjectChatPane({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <button
+            type='button'
+            onClick={onRefresh}
+            aria-label='Refresh'
+            className='inline-flex size-7 items-center justify-center rounded-md text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
+          >
+            <RefreshCw
+              aria-hidden='true'
+              className='size-3.5'
+            />
+          </button>
         </div>
       </div>
 
-      <div className='flex min-h-0 flex-1 flex-col px-5 pb-4 pt-4'>
+      <div className='flex min-h-0 flex-1 flex-col'>
         <AgentPane
           thread={thread}
           events={events}

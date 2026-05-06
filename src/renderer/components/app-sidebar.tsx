@@ -1,24 +1,13 @@
 import { useQueries } from '@tanstack/react-query'
-import { Folder, Plus, Settings } from 'lucide-react'
+import { ChevronDown, Plus, Settings } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link, useMatch } from 'react-router-dom'
 import type { Project } from '../hooks/use-projects'
 import type { AgentState, Task } from '../hooks/use-tasks'
 import { apiFetch } from '../lib/api-client'
 import { cn } from '../lib/utils'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupAction,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem
-} from './ui/sidebar'
+import { Mark } from './ui/mark'
+import { Sidebar, SidebarContent } from './ui/sidebar'
 
 type AttentionState = 'needs_attention' | 'running' | 'idle'
 
@@ -74,8 +63,8 @@ function AttentionDot({ state }: { state: AttentionState }) {
         className='relative flex size-2 shrink-0'
         aria-label='needs your attention'
       >
-        <span className='absolute inline-flex size-full animate-ping rounded-full bg-banana opacity-75' />
-        <span className='relative inline-flex size-2 rounded-full bg-banana' />
+        <span className='absolute inline-flex size-full animate-ping rounded-full bg-[color:var(--accent)] opacity-75' />
+        <span className='relative inline-flex size-2 rounded-full bg-[color:var(--accent)]' />
       </span>
     )
   }
@@ -83,201 +72,150 @@ function AttentionDot({ state }: { state: AttentionState }) {
   if (state === 'running') {
     return (
       <span
-        className='size-2 shrink-0 rounded-full bg-[color:var(--ctp-peach)] animate-banana-pulse'
+        className='size-2 shrink-0 animate-attention-pulse rounded-full bg-[color:var(--st-running)]'
         aria-hidden='true'
       />
     )
   }
 
-  return (
-    <span
-      className='size-1.5 shrink-0 rounded-full bg-muted-foreground/40'
-      aria-hidden='true'
-    />
-  )
+  return null
 }
 
-interface ProjectSidebarItemProps {
+interface ProjectItemProps {
   project: Project
   attention: AttentionState
 }
 
-function ProjectSidebarItem({ project, attention }: ProjectSidebarItemProps) {
+function ProjectItem({ attention, project }: ProjectItemProps) {
   const match = useMatch(`/projects/${project.id}`)
+  const agentMatch = useMatch(`/projects/${project.id}/agent/*`)
+  const isActive = Boolean(match) || Boolean(agentMatch)
 
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        asChild
-        isActive={Boolean(match)}
+    <li>
+      <Link
+        to={`/projects/${project.id}`}
+        className={cn(
+          'flex h-7 w-full items-center gap-2 rounded-md px-2 text-[13px] text-[color:var(--fg-2)] transition-colors',
+          'hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]',
+          isActive &&
+            'bg-[color:var(--selected-bg)] font-medium text-[color:var(--fg)]'
+        )}
       >
-        <Link to={`/projects/${project.id}`}>
-          <Folder />
-          <span className='flex-1 truncate'>{project.name}</span>
-          <AttentionDot state={attention} />
-        </Link>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
+        <span
+          aria-hidden='true'
+          className='size-3 shrink-0 rounded-[3px]'
+          style={{ backgroundColor: 'var(--accent)' }}
+        />
+        <span className='flex-1 truncate'>{project.name}</span>
+        <AttentionDot state={attention} />
+      </Link>
+    </li>
   )
 }
 
-interface AttentionSectionProps {
-  label: string
-  tone: AttentionState
+interface ProjectsListProps {
   projects: Project[]
-  attentionByProjectId: Map<string, AttentionState>
+  onAddProject: () => void
 }
 
-function AttentionSection({
-  attentionByProjectId,
-  label,
-  projects,
-  tone
-}: AttentionSectionProps) {
-  if (projects.length === 0) {
-    return null
-  }
-
-  const labelClass = cn(
-    'px-2 pb-1 pt-3 font-display text-[10px] font-semibold uppercase tracking-widest',
-    tone === 'needs_attention' && 'text-banana',
-    tone === 'running' && 'text-[color:var(--ctp-peach)]',
-    tone === 'idle' && 'text-muted-foreground/60'
-  )
-
-  return (
-    <>
-      <div className={labelClass}>{label}</div>
-      <SidebarMenu>
-        {projects.map((project) => (
-          <ProjectSidebarItem
-            key={project.id}
-            project={project}
-            attention={attentionByProjectId.get(project.id) ?? 'idle'}
-          />
-        ))}
-      </SidebarMenu>
-    </>
-  )
-}
-
-function SidebarLogo() {
-  return (
-    <div className='flex items-center gap-2 px-2 py-2'>
-      <div className='flex size-8 items-center justify-center rounded-md bg-banana/20'>
-        <span className='text-xl leading-none select-none'>🦍</span>
-      </div>
-      <div className='flex flex-col leading-tight'>
-        <span className='font-display text-base font-bold tracking-tight'>
-          Code Monkey
-        </span>
-        <span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>
-          apes · together · strong
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function EmptyProjects() {
-  return (
-    <div className='flex flex-col gap-1 px-2 py-2'>
-      <p className='text-sm text-muted-foreground'>No projects yet.</p>
-      <p className='font-mono text-[11px] text-muted-foreground/70'>
-        🍌 ape idle. make project.
-      </p>
-    </div>
-  )
-}
-
-interface GroupedProjectsProps {
-  projects: Project[]
-}
-
-function GroupedProjects({ projects }: GroupedProjectsProps) {
+function ProjectsList({ onAddProject, projects }: ProjectsListProps) {
   const attentionByProjectId = useProjectAttentionMap(projects)
 
-  const grouped = useMemo(() => {
-    const buckets: Record<AttentionState, Project[]> = {
-      needs_attention: [],
-      running: [],
-      idle: []
-    }
-
-    for (const project of projects) {
-      const state = attentionByProjectId.get(project.id) ?? 'idle'
-      buckets[state].push(project)
-    }
-
-    return buckets
-  }, [projects, attentionByProjectId])
+  if (projects.length === 0) {
+    return (
+      <div className='px-2 py-2'>
+        <p className='text-[12px] text-[color:var(--fg-3)]'>No projects yet.</p>
+        <button
+          type='button'
+          onClick={onAddProject}
+          className='mt-1 text-[11px] text-[color:var(--accent)] hover:underline'
+        >
+          Create your first project
+        </button>
+      </div>
+    )
+  }
 
   return (
-    <>
-      <AttentionSection
-        label='Needs you 🍌'
-        tone='needs_attention'
-        projects={grouped.needs_attention}
-        attentionByProjectId={attentionByProjectId}
-      />
-      <AttentionSection
-        label='Running'
-        tone='running'
-        projects={grouped.running}
-        attentionByProjectId={attentionByProjectId}
-      />
-      <AttentionSection
-        label='Idle'
-        tone='idle'
-        projects={grouped.idle}
-        attentionByProjectId={attentionByProjectId}
-      />
-    </>
+    <ul className='flex flex-col gap-[1px]'>
+      {projects.map((project) => (
+        <ProjectItem
+          key={project.id}
+          project={project}
+          attention={attentionByProjectId.get(project.id) ?? 'idle'}
+        />
+      ))}
+    </ul>
   )
 }
 
-export function AppSidebar({ projects, onAddProject }: AppSidebarProps) {
+export function AppSidebar({ onAddProject, projects }: AppSidebarProps) {
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <SidebarLogo />
-      </SidebarHeader>
-
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className='font-display text-xs font-semibold tracking-wide text-muted-foreground'>
-            Projects
-          </SidebarGroupLabel>
-          <SidebarGroupAction
-            title='New project'
-            onClick={onAddProject}
+    <Sidebar className='border-r border-[color:var(--line)]'>
+      <SidebarContent className='gap-3.5 px-2 py-2.5'>
+        <div className='flex items-center gap-1 px-1'>
+          <button
+            type='button'
+            className='flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] font-medium text-[color:var(--fg)] hover:bg-[color:var(--bg-3)]'
           >
-            <Plus />
-            <span className='sr-only'>New project</span>
-          </SidebarGroupAction>
+            <Mark size={20} />
+            <span className='flex-1 truncate'>code-monkey</span>
+            <ChevronDown
+              aria-hidden='true'
+              className='size-3 text-[color:var(--fg-3)]'
+            />
+          </button>
+          <button
+            type='button'
+            onClick={onAddProject}
+            aria-label='New project'
+            className='inline-flex size-6 items-center justify-center rounded-md text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
+          >
+            <Plus
+              aria-hidden='true'
+              className='size-3.5'
+            />
+          </button>
+        </div>
 
-          <SidebarGroupContent>
-            {projects.length === 0 ? (
-              <EmptyProjects />
-            ) : (
-              <GroupedProjects projects={projects} />
-            )}
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <div className='group/projects flex flex-col gap-[1px]'>
+          <div className='flex items-center justify-between px-2 py-1 text-[11px] font-medium text-[color:var(--fg-3)]'>
+            <span>Projects</span>
+            <button
+              type='button'
+              onClick={onAddProject}
+              aria-label='New project'
+              className='inline-flex size-[18px] items-center justify-center rounded-md text-[color:var(--fg-3)] opacity-0 transition-opacity hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)] group-hover/projects:opacity-100 focus-visible:opacity-100'
+            >
+              <Plus
+                aria-hidden='true'
+                className='size-3'
+              />
+            </button>
+          </div>
+
+          <ProjectsList
+            projects={projects}
+            onAddProject={onAddProject}
+          />
+        </div>
+
+        <div className='flex-1' />
+
+        <div className='border-t border-[color:var(--line)] pt-1.5'>
+          <Link
+            to='/settings'
+            className='flex h-7 items-center gap-2 rounded-md px-2 text-[13px] text-[color:var(--fg-2)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
+          >
+            <Settings
+              aria-hidden='true'
+              className='size-3.5 text-[color:var(--fg-3)]'
+            />
+            <span>Settings</span>
+          </Link>
+        </div>
       </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link to='/settings'>
-                <Settings />
-                <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
     </Sidebar>
   )
 }

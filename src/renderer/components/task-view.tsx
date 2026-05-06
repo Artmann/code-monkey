@@ -1,7 +1,9 @@
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
 import { Pencil, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import { useSearchParams } from 'react-router-dom'
 import remarkGfm from 'remark-gfm'
 import invariant from 'tiny-invariant'
 import { useProviderSettingsQuery } from '../hooks/use-provider-settings'
@@ -21,12 +23,11 @@ import {
 } from '../hooks/use-thread'
 import { apiFetch } from '../lib/api-client'
 import { getStatusMeta, statusOrder } from '../lib/task-status'
-import type { ApprovalDecisionShape } from './agent-transcript'
 import { cn } from '../lib/utils'
 import { AgentHeaderControls } from './agent-header-controls'
 import { AgentPane } from './agent-pane'
-import { StatePill } from './state-pill'
-import { Button } from './ui/button'
+import type { ApprovalDecisionShape } from './agent-transcript'
+import { shortTaskId } from './task-list'
 import {
   Select,
   SelectContent,
@@ -34,8 +35,16 @@ import {
   SelectTrigger,
   SelectValue
 } from './ui/select'
+import {
+  StatusDot,
+  statusFromTaskStatus,
+  type StatusKey
+} from './ui/status-dot'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { Tag, type TagColor } from './ui/tag'
 import { Textarea } from './ui/textarea'
+
+dayjs.extend(relativeTime)
 
 interface TaskViewProps {
   task: Task
@@ -63,6 +72,56 @@ const parseTaskViewTab = (value: string): TaskViewTab => {
   )
 
   return value as TaskViewTab
+}
+
+function detailStatusKey(task: Task): StatusKey {
+  if (task.agentState === 'working') {
+    return 'running'
+  }
+
+  if (task.agentState === 'waiting_for_input') {
+    return 'blocked'
+  }
+
+  return statusFromTaskStatus(task.status)
+}
+
+function agentStateTag(
+  agentState: Task['agentState']
+): { label: string; color: TagColor } | null {
+  if (agentState === 'working') {
+    return { label: 'Working', color: 'amber' }
+  }
+
+  if (agentState === 'waiting_for_input') {
+    return { label: 'Needs you', color: 'red' }
+  }
+
+  if (agentState === 'done') {
+    return { label: 'Done', color: 'green' }
+  }
+
+  return null
+}
+
+function formatRelative(value: string): string {
+  const date = dayjs(value)
+
+  if (!date.isValid()) {
+    return '—'
+  }
+
+  return date.fromNow()
+}
+
+function formatAbsolute(value: string): string {
+  const date = dayjs(value)
+
+  if (!date.isValid()) {
+    return '—'
+  }
+
+  return date.format('MMM D, YYYY · HH:mm')
 }
 
 export function TaskView({ task, onClose }: TaskViewProps) {
@@ -118,79 +177,91 @@ export function TaskView({ task, onClose }: TaskViewProps) {
     })
   }
 
+  const statusMeta = getStatusMeta(task.status)
+  const statusKey = detailStatusKey(task)
+  const tag = agentStateTag(task.agentState)
+
   return (
-    <div className='flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-l bg-background'>
-      <div className='flex items-center justify-between gap-4 border-b px-6 py-4'>
-        <div className='flex min-w-0 items-center gap-3'>
-          <h2 className='truncate font-display text-[15px] font-semibold leading-tight tracking-tight'>
-            {task.title}
-          </h2>
-        </div>
+    <div className='flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-l border-[color:var(--line)] bg-background'>
+      <div className='flex shrink-0 items-center gap-2 border-b border-[color:var(--line)] px-3 py-2'>
+        <span className='font-mono text-[11.5px] font-medium text-[color:var(--fg-3)]'>
+          {shortTaskId(task.id)}
+        </span>
+        <span className='min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--fg)]'>
+          {task.title}
+        </span>
 
-        <div className='flex shrink-0 items-center gap-2'>
-          <StatePill
-            thread={agent.thread}
-            agentState={task.agentState}
+        {tag ? (
+          <Tag
+            label={tag.label}
+            color={tag.color}
           />
+        ) : null}
 
-          <Select
-            value={task.status}
-            onValueChange={(value) =>
-              updateTask.mutate({
-                id: task.id,
-                status: value as TaskStatus
-              })
-            }
+        <Select
+          value={task.status}
+          onValueChange={(value) =>
+            updateTask.mutate({
+              id: task.id,
+              status: value as TaskStatus
+            })
+          }
+        >
+          <SelectTrigger
+            size='sm'
+            className='h-7 gap-1.5 px-2 text-[12px]'
+            aria-label='Task status'
           >
-            <SelectTrigger
-              size='sm'
-              className='h-7 w-auto gap-2 text-xs'
-              aria-label='Task status'
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOrder.map((value) => {
-                const meta = getStatusMeta(value)
-                const Icon = meta.icon
+            <StatusDot
+              status={statusKey}
+              size={12}
+            />
+            <SelectValue>{statusMeta.label}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {statusOrder.map((value) => {
+              const meta = getStatusMeta(value)
+              const Icon = meta.icon
 
-                return (
-                  <SelectItem
-                    key={value}
-                    value={value}
-                  >
-                    <Icon
-                      aria-hidden='true'
-                      className={cn('size-4', meta.iconClassName)}
-                    />
-                    {meta.label}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
+              return (
+                <SelectItem
+                  key={value}
+                  value={value}
+                >
+                  <Icon
+                    aria-hidden='true'
+                    className={cn('size-4', meta.iconClassName)}
+                  />
+                  {meta.label}
+                </SelectItem>
+              )
+            })}
+          </SelectContent>
+        </Select>
 
-          <AgentHeaderControls
-            task={task}
-            thread={agent.thread}
-            providerConfigured={agent.providerConfigured}
-            onStartWork={agent.onStartWork}
-            onRestartChat={agent.onRestartChat}
-            onMerge={agent.onMerge}
-            isStarting={agent.isStarting}
-            isRestarting={agent.isRestarting}
-            isMerging={agent.isMerging}
+        <AgentHeaderControls
+          task={task}
+          thread={agent.thread}
+          providerConfigured={agent.providerConfigured}
+          onStartWork={agent.onStartWork}
+          onRestartChat={agent.onRestartChat}
+          onMerge={agent.onMerge}
+          isStarting={agent.isStarting}
+          isRestarting={agent.isRestarting}
+          isMerging={agent.isMerging}
+        />
+
+        <button
+          type='button'
+          aria-label='Close task view'
+          onClick={closeTaskView}
+          className='inline-flex size-7 items-center justify-center rounded-md text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
+        >
+          <X
+            aria-hidden='true'
+            className='size-3.5'
           />
-
-          <Button
-            variant='ghost'
-            size='icon'
-            aria-label='Close task view'
-            onClick={closeTaskView}
-          >
-            <X />
-          </Button>
-        </div>
+        </button>
       </div>
 
       <Tabs
@@ -198,16 +269,26 @@ export function TaskView({ task, onClose }: TaskViewProps) {
         onValueChange={handleTabChange}
         className='flex flex-1 flex-col gap-0 overflow-hidden'
       >
-        <div className='border-b px-6 py-2'>
-          <TabsList>
-            <TabsTrigger value='overview'>Overview</TabsTrigger>
-            <TabsTrigger value='agent'>Agent</TabsTrigger>
+        <div className='shrink-0 border-b border-[color:var(--line)] px-3 py-1'>
+          <TabsList className='gap-0.5 bg-transparent p-0'>
+            <TabsTrigger
+              value='overview'
+              className='h-7'
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value='agent'
+              className='h-7'
+            >
+              Agent
+            </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent
           value='overview'
-          className='flex flex-1 flex-col gap-6 overflow-y-auto p-6'
+          className='flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4'
         >
           <EditableTitle
             key={`title-${task.id}`}
@@ -220,11 +301,49 @@ export function TaskView({ task, onClose }: TaskViewProps) {
             value={task.description ?? ''}
             onSave={saveDescription}
           />
+
+          <div className='mt-2 flex flex-col gap-0.5 border-t border-[color:var(--line)] pt-4'>
+            <MetaRow label='Status'>
+              <StatusDot
+                status={statusKey}
+                size={12}
+              />
+              <span className='ml-1.5 text-[color:var(--fg)]'>
+                {statusMeta.label}
+              </span>
+              {tag ? (
+                <span className='ml-2'>
+                  <Tag
+                    label={tag.label}
+                    color={tag.color}
+                  />
+                </span>
+              ) : null}
+            </MetaRow>
+
+            <MetaRow label='Created'>
+              <span
+                className='text-[color:var(--fg)]'
+                title={formatAbsolute(task.createdAt)}
+              >
+                {formatRelative(task.createdAt)}
+              </span>
+            </MetaRow>
+
+            <MetaRow label='Updated'>
+              <span
+                className='text-[color:var(--fg)]'
+                title={formatAbsolute(task.updatedAt)}
+              >
+                {formatRelative(task.updatedAt)}
+              </span>
+            </MetaRow>
+          </div>
         </TabsContent>
 
         <TabsContent
           value='agent'
-          className='flex min-h-0 flex-1 flex-col overflow-hidden p-6'
+          className='flex min-h-0 flex-1 flex-col overflow-hidden'
         >
           <div className='flex h-full min-h-0 flex-1 flex-col'>
             <AgentPane
@@ -242,6 +361,22 @@ export function TaskView({ task, onClose }: TaskViewProps) {
           </div>
         </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+interface MetaRowProps {
+  children: React.ReactNode
+  label: string
+}
+
+function MetaRow({ children, label }: MetaRowProps) {
+  return (
+    <div className='grid grid-cols-[84px_1fr] items-center py-1.5 text-[12.5px]'>
+      <span className='text-[color:var(--fg-3)]'>{label}</span>
+      <span className='flex items-center text-[color:var(--fg)]'>
+        {children}
+      </span>
     </div>
   )
 }
@@ -292,36 +427,37 @@ function useAgentTaskState(
       })
     },
     onSendMessage: (text: string) => {
-      if (!threadId) return
+      if (!threadId) {
+        return
+      }
+
       sendMessage.mutate({ threadId, text })
     },
     onApprovalDecision: (
       requestId: string,
       decision: ApprovalDecisionShape
     ) => {
-      if (!threadId) return
+      if (!threadId) {
+        return
+      }
 
-      void apiFetch(
-        `/threads/${threadId}/approvals/${requestId}`,
-        {
-          method: 'POST',
-          body: JSON.stringify(decision)
-        }
-      )
+      void apiFetch(`/threads/${threadId}/approvals/${requestId}`, {
+        method: 'POST',
+        body: JSON.stringify(decision)
+      })
     },
     onUserInputDecision: (
       requestId: string,
       answers: Record<string, string>
     ) => {
-      if (!threadId) return
+      if (!threadId) {
+        return
+      }
 
-      void apiFetch(
-        `/threads/${threadId}/user-inputs/${requestId}`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ answers })
-        }
-      )
+      void apiFetch(`/threads/${threadId}/user-inputs/${requestId}`, {
+        method: 'POST',
+        body: JSON.stringify({ answers })
+      })
     },
     onMerge: () => {
       mergeTask.mutate(task.id)
@@ -366,7 +502,7 @@ function EditableTitle({ value, onSave }: EditableTitleProps) {
       <button
         type='button'
         onClick={startEditing}
-        className='w-full cursor-text text-left font-display text-3xl font-bold leading-tight tracking-tight outline-none hover:opacity-80'
+        className='w-full cursor-text text-left text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[color:var(--fg)] outline-none hover:opacity-80'
       >
         {value}
       </button>
@@ -389,7 +525,7 @@ function EditableTitle({ value, onSave }: EditableTitleProps) {
         }
       }}
       aria-label='Task title'
-      className='w-full rounded-sm border-0 bg-transparent font-display text-3xl font-bold leading-tight tracking-tight outline-none ring-2 ring-ring/40 focus:ring-ring'
+      className='w-full rounded-sm border-0 bg-transparent text-[18px] font-semibold leading-tight tracking-[-0.01em] outline-none ring-2 ring-ring/40 focus:ring-ring'
     />
   )
 }
@@ -423,6 +559,7 @@ function EditableDescription({ value, onSave }: EditableDescriptionProps) {
     if (shouldCommitRef.current) {
       onSave(draft)
     }
+
     setIsEditing(false)
   }
 
@@ -448,33 +585,34 @@ function EditableDescription({ value, onSave }: EditableDescriptionProps) {
         aria-label='Task description'
         placeholder='Write a description…'
         rows={10}
-        className='min-h-40 resize-y text-sm'
+        className='min-h-40 resize-y text-[13.5px]'
       />
     )
   }
 
   return (
     <div className='group relative rounded-md'>
-      <Button
+      <button
         type='button'
-        variant='ghost'
-        size='icon'
         aria-label='Edit description'
         onClick={startEditing}
-        className='absolute right-2 top-2 size-7 opacity-0 transition-opacity group-hover:opacity-100'
+        className='absolute right-1 top-1 inline-flex size-7 items-center justify-center rounded-md text-[color:var(--fg-3)] opacity-0 transition-opacity hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)] group-hover:opacity-100'
       >
-        <Pencil />
-      </Button>
+        <Pencil
+          aria-hidden='true'
+          className='size-3.5'
+        />
+      </button>
 
       {value ? (
-        <div className='prose prose-sm max-w-none text-sm text-foreground dark:prose-invert'>
+        <div className='prose prose-sm max-w-none text-[13.5px] leading-[1.55] text-[color:var(--fg-2)] dark:prose-invert'>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
         </div>
       ) : (
         <button
           type='button'
           onClick={startEditing}
-          className='text-left text-sm text-muted-foreground hover:text-foreground'
+          className='text-left text-[13px] text-[color:var(--fg-3)] hover:text-[color:var(--fg)]'
         >
           Add description…
         </button>

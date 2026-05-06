@@ -19,17 +19,19 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, Plus } from 'lucide-react'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { Check, ChevronDown, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   useReorderTasksMutation,
   useUpdateTaskMutation,
+  type AgentState,
   type ReorderUpdate,
   type Task,
   type TaskStatus
 } from '../hooks/use-tasks'
-import { getAgentStateMeta } from '../lib/agent-state'
 import { getStatusMeta, statusOrder } from '../lib/task-status'
 import { cn } from '../lib/utils'
 import {
@@ -41,6 +43,14 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger
 } from './ui/context-menu'
+import {
+  StatusDot,
+  statusFromTaskStatus,
+  type StatusKey
+} from './ui/status-dot'
+import { Tag } from './ui/tag'
+
+dayjs.extend(relativeTime)
 
 export type GroupedTasks = Record<TaskStatus, Task[]>
 
@@ -80,7 +90,10 @@ function diffUpdates(
   previous: GroupedTasks,
   next: GroupedTasks
 ): ReorderUpdate[] {
-  const previousById = new Map<string, { status: TaskStatus; sortOrder: number }>()
+  const previousById = new Map<
+    string,
+    { status: TaskStatus; sortOrder: number }
+  >()
 
   for (const status of statusOrder) {
     previous[status].forEach((task, index) => {
@@ -107,6 +120,37 @@ function diffUpdates(
   return updates
 }
 
+export function shortTaskId(id: string): string {
+  const cleaned = id.replace(/-/g, '')
+  return cleaned.slice(0, 4).toUpperCase()
+}
+
+function formatTaskDate(value: string): string {
+  const date = dayjs(value)
+
+  if (!date.isValid()) {
+    return ''
+  }
+
+  if (date.isSame(dayjs(), 'day')) {
+    return date.format('HH:mm')
+  }
+
+  return date.format('MMM D')
+}
+
+function rowStatusKey(task: Task): StatusKey {
+  if (task.agentState === 'working') {
+    return 'running'
+  }
+
+  if (task.agentState === 'waiting_for_input') {
+    return 'blocked'
+  }
+
+  return statusFromTaskStatus(task.status)
+}
+
 interface TaskListProps {
   projectId: string
   tasks: Task[]
@@ -115,10 +159,10 @@ interface TaskListProps {
 }
 
 export function TaskList({
-  projectId,
-  tasks,
   onRequestCreate,
-  selectedTaskId = null
+  projectId,
+  selectedTaskId = null,
+  tasks
 }: TaskListProps) {
   const remoteGroups = useMemo(() => groupTasks(tasks), [tasks])
 
@@ -295,83 +339,86 @@ interface TaskGroupProps {
 }
 
 function TaskGroup({
-  status,
-  tasks,
   onAdd,
   projectId,
-  selectedTaskId
+  selectedTaskId,
+  status,
+  tasks
 }: TaskGroupProps) {
   const meta = getStatusMeta(status)
-  const Icon = meta.icon
+  const groupStatusKey = statusFromTaskStatus(status)
+  const [isOpen, setIsOpen] = useState(true)
 
   const { setNodeRef } = useDroppable({ id: status })
-
-  const emptyLabel = emptyLabelForStatus(status)
 
   return (
     <section
       ref={setNodeRef}
       data-testid={`task-group-${status}`}
     >
-      <header className='group/header sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75'>
-        <div className='flex items-center gap-2'>
-          <Icon
-            aria-hidden='true'
-            className={cn('size-4', meta.iconClassName)}
-          />
-          <span className='font-display text-xs font-semibold uppercase tracking-widest'>
-            {meta.label}
-          </span>
-          <span className='rounded-full bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground'>
-            {tasks.length}
-          </span>
-        </div>
-
+      <header
+        className='sticky top-0 z-10 flex h-9 items-center gap-2 border-b border-[color:var(--line)] bg-[color:var(--bg-2)] px-4 text-[12.5px]'
+        onClick={() => setIsOpen((prev) => !prev)}
+      >
+        <ChevronDown
+          aria-hidden='true'
+          className={cn(
+            'size-3 text-[color:var(--fg-3)] transition-transform',
+            !isOpen && '-rotate-90'
+          )}
+        />
+        <StatusDot
+          status={groupStatusKey}
+          size={13}
+        />
+        <span className='font-medium text-[color:var(--fg)]'>
+          {meta.label}
+        </span>
+        <span className='tabular-nums text-[11.5px] text-[color:var(--fg-3)]'>
+          {tasks.length}
+        </span>
+        <span className='flex-1' />
         <button
           type='button'
-          onClick={onAdd}
+          onClick={(event) => {
+            event.stopPropagation()
+            onAdd()
+          }}
           aria-label={`Add task to ${meta.label}`}
-          className='flex size-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/header:opacity-100 focus-visible:opacity-100'
+          className='inline-flex size-[18px] items-center justify-center rounded text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
         >
-          <Plus className='size-4' />
+          <Plus
+            aria-hidden='true'
+            className='size-3'
+          />
         </button>
       </header>
 
-      <SortableContext
-        items={tasks.map((task) => task.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        <ul className='divide-y divide-border/50'>
+      {isOpen ? (
+        <SortableContext
+          items={tasks.map((task) => task.id)}
+          strategy={verticalListSortingStrategy}
+        >
           {tasks.length === 0 ? (
-            <li className='px-6 py-3 font-mono text-[11px] text-muted-foreground/70'>
-              {emptyLabel}
-            </li>
+            <p className='px-4 py-3.5 text-[12px] text-[color:var(--fg-4)]'>
+              No tasks.
+            </p>
           ) : (
-            tasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                projectId={projectId}
-                isSelected={task.id === selectedTaskId}
-              />
-            ))
+            <ul className='flex flex-col'>
+              {tasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  projectId={projectId}
+                  isSelected={task.id === selectedTaskId}
+                />
+              ))}
+            </ul>
           )}
-        </ul>
-      </SortableContext>
+        </SortableContext>
+      ) : null}
     </section>
   )
-}
-
-function emptyLabelForStatus(status: TaskStatus): string {
-  if (status === 'in_progress') {
-    return 'No tasks. 🦍 not working yet.'
-  }
-
-  if (status === 'todo') {
-    return 'No tasks. Feed ape. 🍌'
-  }
-
-  return 'No tasks. Ape ship nothing yet.'
 }
 
 interface TaskRowProps {
@@ -382,16 +429,11 @@ interface TaskRowProps {
 }
 
 function TaskRow({
-  task,
-  projectId: _projectId,
   isOverlay = false,
-  isSelected = false
+  isSelected = false,
+  projectId: _projectId,
+  task
 }: TaskRowProps) {
-  const statusMeta = getStatusMeta(task.status)
-  const agentMeta = getAgentStateMeta(task.agentState)
-  const StatusIcon = statusMeta.icon
-  const AgentIcon = agentMeta.icon
-
   const [, setSearchParams] = useSearchParams()
   const updateTask = useUpdateTaskMutation()
 
@@ -402,17 +444,22 @@ function TaskRow({
 
   const {
     attributes,
+    isDragging,
     listeners,
     setNodeRef,
     transform,
-    transition,
-    isDragging
+    transition
   } = sortable
 
   const style = {
     transform: CSS.Translate.toString(transform),
     transition
   }
+
+  const rowStatus = rowStatusKey(task)
+  const agentTagLabel = task.agentState !== 'idle'
+    ? agentTagFor(task.agentState)
+    : null
 
   function handleStatusChange(status: TaskStatus) {
     if (status === task.status) {
@@ -423,12 +470,11 @@ function TaskRow({
   }
 
   const rowClassName = cn(
-    'group/row flex cursor-pointer items-center gap-3 border-l-2 border-l-transparent px-6 py-3 text-sm transition-colors hover:bg-accent/40',
-    agentMeta.highlightRow &&
-      'border-l-banana bg-banana/[0.06] hover:bg-banana/[0.1]',
-    task.agentState === 'working' &&
-      'border-l-banana/60 bg-banana/[0.04] hover:bg-banana/[0.08]',
-    isSelected && 'bg-accent/60 hover:bg-accent/60',
+    'group/row grid h-9 cursor-pointer items-center gap-3 border-b border-[color:var(--line)] px-4 text-[13px] transition-colors',
+    'hover:bg-[color:var(--bg-3)]',
+    'grid-cols-[44px_14px_minmax(0,1fr)_auto_auto]',
+    isSelected &&
+      'bg-[color:var(--selected-bg)] shadow-[inset_2px_0_0_var(--accent)] hover:bg-[color:var(--selected-bg)]',
     isDragging && !isOverlay && 'opacity-40',
     isOverlay && 'border bg-background shadow-lg'
   )
@@ -443,39 +489,22 @@ function TaskRow({
 
   const rowContent = (
     <>
-      <span
-        className={cn(
-          'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 font-display text-[11px] font-semibold uppercase tracking-wider',
-          agentMeta.badgeClassName
-        )}
-        title={`Agent: ${agentMeta.label}`}
-      >
-        <AgentIcon
-          aria-hidden='true'
-          className={cn(
-            'size-3.5',
-            agentMeta.iconClassName,
-            agentMeta.animate && 'animate-spin'
-          )}
-        />
-        <span>{agentMeta.label}</span>
+      <span className='truncate font-mono text-[11.5px] font-medium text-[color:var(--fg-3)]'>
+        {shortTaskId(task.id)}
       </span>
-
-      <span className='flex-1 truncate font-medium'>{task.title}</span>
-
-      {task.description ? (
-        <span className='hidden max-w-[40ch] truncate text-xs text-muted-foreground md:inline'>
-          {task.description}
-        </span>
-      ) : null}
-
-      <StatusIcon
-        aria-hidden='true'
-        className={cn(
-          'size-4 shrink-0 opacity-60 transition-opacity group-hover/row:opacity-100',
-          statusMeta.iconClassName
-        )}
-      />
+      <StatusDot status={rowStatus} />
+      <span className='truncate text-[color:var(--fg)]'>{task.title}</span>
+      <span className='inline-flex shrink-0 items-center gap-1'>
+        {agentTagLabel ? (
+          <Tag
+            label={agentTagLabel.label}
+            color={agentTagLabel.color}
+          />
+        ) : null}
+      </span>
+      <span className='w-12 shrink-0 text-right text-[11.5px] tabular-nums text-[color:var(--fg-3)]'>
+        {formatTaskDate(task.updatedAt)}
+      </span>
     </>
   )
 
@@ -502,16 +531,15 @@ function TaskRow({
       <ContextMenuContent className='w-56'>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
-            <StatusIcon
-              aria-hidden='true'
-              className={cn('size-4', statusMeta.iconClassName)}
+            <StatusDot
+              status={statusFromTaskStatus(task.status)}
+              size={12}
             />
-            Status
+            <span className='ml-2'>Status</span>
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className='w-56'>
             {statusOrder.map((value) => {
               const itemMeta = getStatusMeta(value)
-              const ItemIcon = itemMeta.icon
               const isCurrent = task.status === value
 
               return (
@@ -519,15 +547,15 @@ function TaskRow({
                   key={value}
                   onSelect={() => handleStatusChange(value)}
                 >
-                  <ItemIcon
-                    aria-hidden='true'
-                    className={cn('size-4', itemMeta.iconClassName)}
+                  <StatusDot
+                    status={statusFromTaskStatus(value)}
+                    size={12}
                   />
-                  <span className='flex-1'>{itemMeta.label}</span>
+                  <span className='ml-2 flex-1'>{itemMeta.label}</span>
                   {isCurrent ? (
                     <Check
                       aria-hidden='true'
-                      className='size-4'
+                      className='size-3.5'
                     />
                   ) : null}
                 </ContextMenuItem>
@@ -538,4 +566,20 @@ function TaskRow({
       </ContextMenuContent>
     </ContextMenu>
   )
+}
+
+function agentTagFor(state: AgentState) {
+  if (state === 'working') {
+    return { label: 'Working', color: 'amber' as const }
+  }
+
+  if (state === 'waiting_for_input') {
+    return { label: 'Needs you', color: 'red' as const }
+  }
+
+  if (state === 'done') {
+    return { label: 'Done', color: 'green' as const }
+  }
+
+  return null
 }

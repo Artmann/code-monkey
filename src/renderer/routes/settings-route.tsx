@@ -25,13 +25,13 @@ const themeOptions: Array<{
     value: 'light',
     label: 'Light',
     icon: Sun,
-    description: 'Catppuccin Latte'
+    description: 'Bright theme'
   },
   {
     value: 'dark',
     label: 'Dark',
     icon: Moon,
-    description: 'Catppuccin Macchiato'
+    description: 'Dim theme'
   },
   {
     value: 'system',

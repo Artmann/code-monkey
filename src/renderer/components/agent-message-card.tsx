@@ -1,11 +1,11 @@
+import dayjs from 'dayjs'
 import { motion } from 'framer-motion'
-import { Check, Copy, Sparkles } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import { cn } from '../lib/utils'
-import { Button } from './ui/button'
 
 interface AgentMessageCardProps {
   text: string
@@ -18,6 +18,20 @@ const fadeIn = {
   initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.25, ease: 'easeOut' as const }
+}
+
+function formatTime(value?: string | null): string | null {
+  if (!value) {
+    return null
+  }
+
+  const date = dayjs(value)
+
+  if (!date.isValid()) {
+    return value
+  }
+
+  return date.format('HH:mm:ss')
 }
 
 export function AgentMessageCard({
@@ -38,60 +52,60 @@ export function AgentMessageCard({
     }
   }
 
+  const time = formatTime(timestamp)
+
   return (
     <motion.div
       {...fadeIn}
-      className={cn(
-        'group relative rounded-xl border bg-card px-4 py-4 sm:px-5',
-        'before:absolute before:left-0 before:top-3.5 before:bottom-3.5 before:w-[3px] before:rounded-full before:bg-banana',
-        className
-      )}
+      className={cn('group flex flex-col', className)}
     >
-      <div
-        className='mb-2 flex items-center gap-2 font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana'
-      >
-        <Sparkles
-          aria-hidden='true'
-          className='size-3'
-        />
-        <span>Agent</span>
-        {timestamp ? (
-          <span className='font-mono font-normal normal-case tracking-normal text-muted-foreground'>
-            · {timestamp}
+      <div className='mb-1 flex items-baseline gap-2'>
+        <span className='text-[11.5px] font-medium text-[color:var(--fg-3)]'>
+          Agent
+        </span>
+        {time ? (
+          <span className='font-mono text-[10.5px] text-[color:var(--fg-4)]'>
+            {time}
           </span>
         ) : null}
       </div>
 
-      <div className='prose prose-sm prose-agent dark:prose-invert max-w-none text-[15px] leading-relaxed'>
+      <div className='prose prose-sm prose-agent max-w-none text-[13.5px] leading-[1.55] text-[color:var(--fg)] dark:prose-invert'>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
         {streaming ? (
           <span
             aria-hidden='true'
-            className='ml-0.5 inline-block animate-cursor-blink text-banana'
+            className='ml-0.5 inline-block animate-cursor-blink text-[color:var(--accent)]'
           >
             ▍
           </span>
         ) : null}
       </div>
 
-      <div className='mt-2 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100'>
-        <Button
+      <div className='mt-1 flex gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100'>
+        <button
           type='button'
-          size='sm'
-          variant='ghost'
-          className='h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground'
           onClick={onCopy}
+          className='inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-[color:var(--fg-3)] hover:bg-[color:var(--bg-3)] hover:text-[color:var(--fg)]'
         >
           {copied ? (
             <>
-              <Check className='size-3' /> Copied
+              <Check
+                aria-hidden='true'
+                className='size-3'
+              />
+              Copied
             </>
           ) : (
             <>
-              <Copy className='size-3' /> Copy
+              <Copy
+                aria-hidden='true'
+                className='size-3'
+              />
+              Copy
             </>
           )}
-        </Button>
+        </button>
       </div>
     </motion.div>
   )

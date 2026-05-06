@@ -112,9 +112,7 @@ describe('TaskView', () => {
       { initialEntries: ['/projects/project-1/tasks/task-1'] }
     )
 
-    expect(
-      screen.getByRole('heading', { name: /build the thing/i })
-    ).toBeInTheDocument()
+    expect(screen.getByText('Build the thing')).toBeInTheDocument()
     expect(screen.getByText(/working/i)).toBeInTheDocument()
     expect(
       screen.getByRole('tab', { name: /agent/i })

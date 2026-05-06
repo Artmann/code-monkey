@@ -1,4 +1,4 @@
-import { ChevronDown, Loader2, SendHorizontal } from 'lucide-react'
+import { ChevronDown, Loader2, SendHorizontal, ShieldCheck } from 'lucide-react'
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -37,9 +37,11 @@ export type AgentPaneProps = {
 }
 
 const Composer = ({
+  branchName,
   disabled,
   onSend
 }: {
+  branchName?: string | null
   disabled: boolean
   onSend: (text: string) => void
 }) => {
@@ -48,14 +50,20 @@ const Composer = ({
   const submit = () => {
     const value = text.trim()
 
-    if (!value || disabled) return
+    if (!value || disabled) {
+      return
+    }
 
     onSend(value)
     setText('')
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    const isSubmitShortcut =
+      event.key === 'Enter' && (event.metaKey || event.ctrlKey)
+    const isPlainEnter = event.key === 'Enter' && !event.shiftKey
+
+    if (isSubmitShortcut || isPlainEnter) {
       event.preventDefault()
       submit()
     }
@@ -68,39 +76,76 @@ const Composer = ({
         submit()
       }}
       className={cn(
-        'flex flex-col gap-2 rounded-xl border bg-card px-3 py-2.5 transition-colors',
-        'focus-within:border-muted-foreground/50'
+        'flex w-full max-w-[760px] flex-col gap-1 self-center rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-1 shadow-[var(--shadow-1)]'
       )}
     >
       <Textarea
-        placeholder='Nudge the agent, or type a follow-up…'
+        placeholder='Ask for follow-up changes…'
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={onKeyDown}
         disabled={disabled}
-        rows={1}
+        rows={2}
         className={cn(
-          'min-h-[40px] max-h-40 resize-none border-0 bg-transparent px-1 py-1 text-[13px] shadow-none focus-visible:ring-0'
+          'min-h-[44px] max-h-40 resize-none border-0 bg-transparent px-2.5 py-2 text-[13px] text-[color:var(--fg)] shadow-none placeholder:text-[color:var(--fg-4)] focus-visible:ring-0'
         )}
       />
-      <div className='flex items-center gap-2'>
-        <span className='ml-1 text-[11px] text-muted-foreground/70'>
-          Enter to send · ⇧Enter for newline
-        </span>
-        <Button
-          type='submit'
-          size='sm'
-          disabled={disabled || text.trim() === ''}
-          className='ml-auto h-7 gap-1.5 px-3 text-xs'
-        >
-          <SendHorizontal
-            aria-hidden='true'
-            className='size-3'
-          />
-          Send
-        </Button>
+      <div className='flex items-center justify-between gap-2 px-1.5 pb-1 pt-0'>
+        <div className='flex items-center gap-1.5'>
+          <ChipButton>
+            <span
+              aria-hidden='true'
+              className='inline-block size-1.5 rounded-full bg-[color:var(--accent)]'
+            />
+            <ShieldCheck
+              aria-hidden='true'
+              className='size-3'
+            />
+            Full access
+          </ChipButton>
+          <ChipButton>
+            <span aria-hidden='true'>⌥</span>
+            <span className='font-mono'>{branchName ?? 'main'}</span>
+          </ChipButton>
+        </div>
+
+        <div className='flex items-center gap-1.5'>
+          <span className='inline-flex items-center rounded-[4px] border border-[color:var(--line)] bg-[color:var(--bg-3)] px-1.5 py-0.5 font-mono text-[10.5px] text-[color:var(--fg-3)]'>
+            ⌘↵
+          </span>
+          <Button
+            type='submit'
+            size='sm'
+            disabled={disabled || text.trim() === ''}
+            className='h-7 gap-1.5 px-2.5 text-[12px]'
+          >
+            <span>Send</span>
+            <SendHorizontal
+              aria-hidden='true'
+              className='size-3'
+            />
+          </Button>
+        </div>
       </div>
     </form>
+  )
+}
+
+function ChipButton({
+  children,
+  onClick
+}: {
+  children: ReactNode
+  onClick?: () => void
+}) {
+  return (
+    <button
+      type='button'
+      onClick={onClick}
+      className='inline-flex items-center gap-1.5 rounded-full border border-[color:var(--line)] bg-transparent px-2 py-[3px] text-[11.5px] text-[color:var(--fg-2)] hover:bg-[color:var(--bg-3)]'
+    >
+      {children}
+    </button>
   )
 }
 
@@ -122,16 +167,18 @@ const TranscriptScrollArea = ({
     <div className='relative min-h-0 flex-1'>
       <div
         ref={scrollRef}
-        className='absolute inset-0 overflow-y-auto pr-1'
+        className='absolute inset-0 overflow-y-auto'
       >
-        <ApprovalActionsProvider value={onApprovalDecision ?? null}>
-          <UserInputActionsProvider value={onUserInputDecision ?? null}>
-            <AgentTranscript
-              events={events}
-              thread={thread}
-            />
-          </UserInputActionsProvider>
-        </ApprovalActionsProvider>
+        <div className='mx-auto flex max-w-[760px] flex-col gap-3 px-6 py-5'>
+          <ApprovalActionsProvider value={onApprovalDecision ?? null}>
+            <UserInputActionsProvider value={onUserInputDecision ?? null}>
+              <AgentTranscript
+                events={events}
+                thread={thread}
+              />
+            </UserInputActionsProvider>
+          </ApprovalActionsProvider>
+        </div>
       </div>
 
       {!isPinned && hasNewContent && (
@@ -162,21 +209,21 @@ const TaskEmptyState = ({
 }) => {
   if (task.status === 'done') {
     return (
-      <div className='rounded-xl border bg-card px-4 py-4 text-sm text-muted-foreground'>
+      <div className='mx-auto w-full max-w-[760px] rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-4 text-[13px] text-[color:var(--fg-3)]'>
         This task is marked as done.
       </div>
     )
   }
 
   return (
-    <div className='flex flex-col gap-2 rounded-xl border bg-card px-4 py-4 text-sm'>
-      <p className='text-muted-foreground'>
+    <div className='mx-auto flex w-full max-w-[760px] flex-col gap-2 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-4 text-[13px]'>
+      <p className='text-[color:var(--fg-3)]'>
         This task has no agent thread yet. Use{' '}
-        <span className='font-medium text-foreground'>Start Work</span> above to
-        begin.
+        <span className='font-medium text-[color:var(--fg)]'>Start Work</span>{' '}
+        above to begin.
       </p>
       {!providerConfigured && (
-        <p className='text-xs text-[color:var(--ctp-yellow)]'>
+        <p className='text-[12px] text-[color:var(--accent)]'>
           <Link
             to='/settings'
             className='underline'
@@ -204,21 +251,24 @@ export function AgentPane({
   emptyState,
   allowSendWithoutThread = false
 }: AgentPaneProps) {
+  const branchName = thread?.branchName ?? null
+
   if (isStartingNewChat) {
     return (
       <div className='flex h-full min-h-0 flex-1 flex-col overflow-hidden'>
         <div className='flex min-h-0 flex-1 items-center justify-center'>
-          <div className='flex items-center gap-3 rounded-lg border bg-card px-4 py-3'>
+          <div className='flex items-center gap-3 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3'>
             <Loader2
               aria-hidden='true'
-              className='size-4 animate-spin text-banana'
+              className='size-4 animate-spin text-[color:var(--accent)]'
             />
-            <span className='text-sm font-medium'>Starting new chat…</span>
+            <span className='text-[13px] font-medium'>Starting new chat…</span>
           </div>
         </div>
 
-        <div className='mt-3 shrink-0'>
+        <div className='shrink-0 px-6 pb-4'>
           <Composer
+            branchName={branchName}
             disabled
             onSend={onSendMessage}
           />
@@ -234,15 +284,17 @@ export function AgentPane({
 
     if (task) {
       return (
-        <TaskEmptyState
-          task={task}
-          providerConfigured={providerConfigured}
-        />
+        <div className='flex h-full min-h-0 flex-1 flex-col items-stretch justify-center px-6'>
+          <TaskEmptyState
+            task={task}
+            providerConfigured={providerConfigured}
+          />
+        </div>
       )
     }
 
     return (
-      <div className='rounded-xl border bg-card px-4 py-4 text-sm text-muted-foreground'>
+      <div className='mx-auto w-full max-w-[760px] rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-4 text-[13px] text-[color:var(--fg-3)]'>
         No conversation yet.
       </div>
     )
@@ -258,9 +310,11 @@ export function AgentPane({
       {thread?.status === 'error' && thread.errorMessage ? (
         <p
           role='alert'
-          className='mb-2 shrink-0 rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-2 text-xs text-[color:var(--destructive)]'
+          className='mx-auto w-full max-w-[760px] shrink-0 px-6 pt-3 text-[12px] text-[color:var(--destructive)]'
         >
-          {thread.errorMessage}
+          <span className='block rounded-md border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-2'>
+            {thread.errorMessage}
+          </span>
         </p>
       ) : null}
 
@@ -274,14 +328,16 @@ export function AgentPane({
       {mergeError && (
         <p
           role='alert'
-          className='mt-2 shrink-0 rounded-lg border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-2 text-xs text-[color:var(--destructive)]'
+          className='mx-auto w-full max-w-[760px] shrink-0 px-6 pb-1 text-[12px] text-[color:var(--destructive)]'
         >
-          {mergeError}
+          <span className='block rounded-md border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/5 px-3 py-2'>
+            {mergeError}
+          </span>
         </p>
       )}
 
       {!providerConfigured && (
-        <p className='mt-2 shrink-0 text-xs text-[color:var(--ctp-yellow)]'>
+        <p className='mx-auto w-full max-w-[760px] shrink-0 px-6 pb-1 text-[12px] text-[color:var(--accent)]'>
           <Link
             to='/settings'
             className='underline'
@@ -292,8 +348,9 @@ export function AgentPane({
         </p>
       )}
 
-      <div className='mt-3 shrink-0'>
+      <div className='shrink-0 px-6 pb-4 pt-2'>
         <Composer
+          branchName={branchName}
           disabled={composerDisabled}
           onSend={onSendMessage}
         />

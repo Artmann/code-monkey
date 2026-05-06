@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -5,121 +6,196 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Catppuccin Latte — light mode */
+/* ── Light theme — cool neutral, near-white ──────────────────── */
 :root {
-  --ctp-base: #eff1f5;
-  --ctp-mantle: #e6e9ef;
-  --ctp-crust: #dce0e8;
-  --ctp-surface0: #ccd0da;
-  --ctp-surface1: #bcc0cc;
-  --ctp-surface2: #acb0be;
-  --ctp-overlay0: #9ca0b0;
-  --ctp-overlay1: #8c8fa1;
-  --ctp-overlay2: #7c7f93;
-  --ctp-text: #4c4f69;
-  --ctp-subtext1: #5c5f77;
-  --ctp-subtext0: #6c6f85;
-  --ctp-rosewater: #dc8a78;
-  --ctp-flamingo: #dd7878;
-  --ctp-pink: #ea76cb;
-  --ctp-mauve: #8839ef;
-  --ctp-red: #d20f39;
-  --ctp-maroon: #e64553;
-  --ctp-peach: #fe640b;
-  --ctp-yellow: #df8e1d;
-  --ctp-green: #40a02b;
-  --ctp-teal: #179299;
-  --ctp-sky: #04a5e5;
-  --ctp-sapphire: #209fb5;
-  --ctp-blue: #1e66f5;
-  --ctp-lavender: #7287fd;
+  --bg: oklch(1 0 0);
+  --bg-2: oklch(0.985 0.002 270);
+  --bg-3: oklch(0.965 0.003 270);
+  --surface: oklch(1 0 0);
+  --line: oklch(0.92 0.003 270);
+  --line-2: oklch(0.86 0.005 270);
+  --fg: oklch(0.2 0.005 270);
+  --fg-2: oklch(0.42 0.008 270);
+  --fg-3: oklch(0.58 0.008 270);
+  --fg-4: oklch(0.74 0.005 270);
+  --shadow-1: 0 1px 2px oklch(0 0 0 / 0.04);
+  --kbd-bg: oklch(0.96 0.003 270);
+  --primary-bg: oklch(0.18 0.005 270);
+  --primary-fg: oklch(0.99 0 0);
+  --selected-bg: oklch(0.965 0.005 270);
+  --mark-bg: oklch(0.2 0.005 270);
+  --mark-fg: oklch(0.99 0 0);
 
-  --background: var(--ctp-base);
-  --foreground: var(--ctp-text);
-  --card: var(--ctp-mantle);
-  --card-foreground: var(--ctp-text);
-  --popover: var(--ctp-mantle);
-  --popover-foreground: var(--ctp-text);
-  --primary: var(--ctp-peach);
-  --primary-foreground: var(--ctp-base);
-  --secondary: var(--ctp-surface0);
-  --secondary-foreground: var(--ctp-text);
-  --muted: var(--ctp-surface0);
-  --muted-foreground: var(--ctp-overlay1);
-  --accent: var(--ctp-surface0);
-  --accent-foreground: var(--ctp-text);
-  --destructive: var(--ctp-red);
-  --destructive-foreground: var(--ctp-base);
-  --border: var(--ctp-surface0);
-  --input: var(--ctp-surface0);
-  --ring: var(--ctp-peach);
-  --radius: 0.5rem;
-  --sidebar: var(--ctp-mantle);
-  --sidebar-foreground: var(--ctp-text);
-  --sidebar-primary: var(--ctp-peach);
-  --sidebar-primary-foreground: var(--ctp-base);
-  --sidebar-accent: var(--ctp-surface0);
-  --sidebar-accent-foreground: var(--ctp-text);
-  --sidebar-border: var(--ctp-surface0);
-  --sidebar-ring: var(--ctp-peach);
+  --tag-violet-bg: oklch(0.97 0.02 295);
+  --tag-violet-fg: oklch(0.4 0.13 295);
+  --tag-violet-dot: oklch(0.55 0.16 295);
+  --tag-blue-bg: oklch(0.97 0.02 240);
+  --tag-blue-fg: oklch(0.4 0.13 240);
+  --tag-blue-dot: oklch(0.55 0.16 240);
+  --tag-green-bg: oklch(0.97 0.02 155);
+  --tag-green-fg: oklch(0.36 0.1 155);
+  --tag-green-dot: oklch(0.55 0.13 155);
+  --tag-amber-bg: oklch(0.97 0.025 75);
+  --tag-amber-fg: oklch(0.42 0.12 60);
+  --tag-amber-dot: oklch(0.65 0.16 65);
+  --tag-red-bg: oklch(0.97 0.02 25);
+  --tag-red-fg: oklch(0.45 0.16 25);
+  --tag-red-dot: oklch(0.6 0.18 25);
+  --tag-neutral-bg: oklch(0.95 0.003 270);
+  --tag-neutral-fg: oklch(0.42 0.005 270);
+  --tag-neutral-dot: oklch(0.62 0.005 270);
+
+  --st-running: oklch(0.55 0.16 240);
+  --st-done: oklch(0.55 0.14 145);
+  --st-blocked: oklch(0.55 0.18 25);
+  --st-idle: oklch(0.7 0.005 270);
+
+  --accent: oklch(0.55 0.13 295);
+
+  /* shadcn bridge ─ map their tokens onto our palette */
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--surface);
+  --card-foreground: var(--fg);
+  --popover: var(--surface);
+  --popover-foreground: var(--fg);
+  --primary: var(--primary-bg);
+  --primary-foreground: var(--primary-fg);
+  --secondary: var(--bg-3);
+  --secondary-foreground: var(--fg);
+  --muted: var(--bg-3);
+  --muted-foreground: var(--fg-3);
+  --accent-bg: var(--bg-3);
+  --accent-foreground: var(--fg);
+  --destructive: oklch(0.55 0.18 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--accent);
+  --radius: 0.375rem;
+  --sidebar: var(--bg-2);
+  --sidebar-foreground: var(--fg);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: var(--selected-bg);
+  --sidebar-accent-foreground: var(--fg);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--accent);
+
+  /* Legacy aliases (banana / catppuccin) mapped to new tokens. Lets older
+     components continue to render reasonably until they're migrated. */
+  --ctp-base: var(--bg);
+  --ctp-mantle: var(--bg-2);
+  --ctp-crust: var(--bg-3);
+  --ctp-surface0: var(--bg-3);
+  --ctp-surface1: var(--line);
+  --ctp-surface2: var(--line-2);
+  --ctp-text: var(--fg);
+  --ctp-subtext1: var(--fg-2);
+  --ctp-subtext0: var(--fg-3);
+  --ctp-overlay0: var(--fg-3);
+  --ctp-overlay1: var(--fg-3);
+  --ctp-overlay2: var(--fg-4);
+  --ctp-peach: var(--accent);
+  --ctp-mauve: var(--tag-violet-dot);
+  --ctp-blue: var(--tag-blue-dot);
+  --ctp-green: var(--tag-green-dot);
+  --ctp-yellow: var(--tag-amber-dot);
+  --ctp-red: var(--st-blocked);
 }
 
-/* Catppuccin Macchiato — dark mode default */
+/* ── Dark theme ──────────────────────────────────────────────── */
 .dark {
-  --ctp-base: #24273a;
-  --ctp-mantle: #1e2030;
-  --ctp-crust: #181926;
-  --ctp-surface0: #363a4f;
-  --ctp-surface1: #494d64;
-  --ctp-surface2: #5b6078;
-  --ctp-overlay0: #6e738d;
-  --ctp-overlay1: #8087a2;
-  --ctp-overlay2: #939ab7;
-  --ctp-text: #cad3f5;
-  --ctp-subtext1: #b8c0e0;
-  --ctp-subtext0: #a5adcb;
-  --ctp-rosewater: #f4dbd6;
-  --ctp-flamingo: #f0c6c6;
-  --ctp-pink: #f5bde6;
-  --ctp-mauve: #c6a0f6;
-  --ctp-red: #ed8796;
-  --ctp-maroon: #ee99a0;
-  --ctp-peach: #f5a97f;
-  --ctp-yellow: #eed49f;
-  --ctp-green: #a6da95;
-  --ctp-teal: #8bd5ca;
-  --ctp-sky: #91d7e3;
-  --ctp-sapphire: #7dc4e4;
-  --ctp-blue: #8aadf4;
-  --ctp-lavender: #b7bdf8;
+  --bg: oklch(0.16 0.005 270);
+  --bg-2: oklch(0.135 0.005 270);
+  --bg-3: oklch(0.21 0.006 270);
+  --surface: oklch(0.18 0.005 270);
+  --line: oklch(0.25 0.006 270);
+  --line-2: oklch(0.32 0.007 270);
+  --fg: oklch(0.95 0.003 270);
+  --fg-2: oklch(0.78 0.006 270);
+  --fg-3: oklch(0.62 0.008 270);
+  --fg-4: oklch(0.45 0.008 270);
+  --shadow-1: 0 1px 2px oklch(0 0 0 / 0.3);
+  --kbd-bg: oklch(0.22 0.006 270);
+  --primary-bg: oklch(0.96 0.003 270);
+  --primary-fg: oklch(0.16 0.005 270);
+  --selected-bg: oklch(0.22 0.008 270);
+  --mark-bg: oklch(0.96 0.003 270);
+  --mark-fg: oklch(0.16 0.005 270);
 
-  --background: var(--ctp-mantle);
-  --foreground: var(--ctp-text);
-  --card: var(--ctp-base);
-  --card-foreground: var(--ctp-text);
-  --popover: var(--ctp-base);
-  --popover-foreground: var(--ctp-text);
-  --primary: var(--ctp-peach);
-  --primary-foreground: var(--ctp-crust);
-  --secondary: var(--ctp-surface0);
-  --secondary-foreground: var(--ctp-text);
-  --muted: var(--ctp-surface0);
-  --muted-foreground: var(--ctp-overlay1);
-  --accent: var(--ctp-surface1);
-  --accent-foreground: var(--ctp-text);
-  --destructive: var(--ctp-red);
-  --destructive-foreground: var(--ctp-crust);
-  --border: var(--ctp-surface0);
-  --input: var(--ctp-surface0);
-  --ring: var(--ctp-peach);
-  --sidebar: var(--ctp-mantle);
-  --sidebar-foreground: var(--ctp-text);
-  --sidebar-primary: var(--ctp-peach);
-  --sidebar-primary-foreground: var(--ctp-crust);
-  --sidebar-accent: var(--ctp-surface0);
-  --sidebar-accent-foreground: var(--ctp-text);
-  --sidebar-border: var(--ctp-surface0);
-  --sidebar-ring: var(--ctp-peach);
+  --tag-violet-bg: oklch(0.27 0.045 295);
+  --tag-violet-fg: oklch(0.85 0.1 295);
+  --tag-violet-dot: oklch(0.7 0.15 295);
+  --tag-blue-bg: oklch(0.26 0.045 240);
+  --tag-blue-fg: oklch(0.85 0.1 240);
+  --tag-blue-dot: oklch(0.7 0.15 240);
+  --tag-green-bg: oklch(0.25 0.045 155);
+  --tag-green-fg: oklch(0.85 0.1 155);
+  --tag-green-dot: oklch(0.7 0.13 155);
+  --tag-amber-bg: oklch(0.27 0.06 70);
+  --tag-amber-fg: oklch(0.86 0.11 75);
+  --tag-amber-dot: oklch(0.75 0.15 65);
+  --tag-red-bg: oklch(0.27 0.06 25);
+  --tag-red-fg: oklch(0.86 0.12 25);
+  --tag-red-dot: oklch(0.72 0.18 25);
+  --tag-neutral-bg: oklch(0.24 0.005 270);
+  --tag-neutral-fg: oklch(0.78 0.005 270);
+  --tag-neutral-dot: oklch(0.6 0.005 270);
+
+  --st-running: oklch(0.7 0.16 240);
+  --st-done: oklch(0.65 0.14 150);
+  --st-blocked: oklch(0.65 0.18 25);
+  --st-idle: oklch(0.45 0.005 270);
+
+  --accent: oklch(0.7 0.14 295);
+
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--surface);
+  --card-foreground: var(--fg);
+  --popover: var(--surface);
+  --popover-foreground: var(--fg);
+  --primary: var(--primary-bg);
+  --primary-foreground: var(--primary-fg);
+  --secondary: var(--bg-3);
+  --secondary-foreground: var(--fg);
+  --muted: var(--bg-3);
+  --muted-foreground: var(--fg-3);
+  --accent-bg: var(--bg-3);
+  --accent-foreground: var(--fg);
+  --destructive: oklch(0.65 0.18 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--accent);
+  --sidebar: var(--bg-2);
+  --sidebar-foreground: var(--fg);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: var(--selected-bg);
+  --sidebar-accent-foreground: var(--fg);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--accent);
+
+  --ctp-base: var(--bg);
+  --ctp-mantle: var(--bg-2);
+  --ctp-crust: var(--bg-3);
+  --ctp-surface0: var(--bg-3);
+  --ctp-surface1: var(--line);
+  --ctp-surface2: var(--line-2);
+  --ctp-text: var(--fg);
+  --ctp-subtext1: var(--fg-2);
+  --ctp-subtext0: var(--fg-3);
+  --ctp-overlay0: var(--fg-3);
+  --ctp-overlay1: var(--fg-3);
+  --ctp-overlay2: var(--fg-4);
+  --ctp-peach: var(--accent);
+  --ctp-mauve: var(--tag-violet-dot);
+  --ctp-blue: var(--tag-blue-dot);
+  --ctp-green: var(--tag-green-dot);
+  --ctp-yellow: var(--tag-amber-dot);
+  --ctp-red: var(--st-blocked);
 }
 
 @theme inline {
@@ -135,17 +211,17 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
+  --color-accent: var(--accent-bg);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -155,29 +231,34 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans:
-    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
-    'Helvetica Neue', sans-serif;
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
   --font-mono:
-    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --font-display:
-    'Inter', ui-sans-serif, system-ui, sans-serif;
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+  html, body, #root {
+    height: 100%;
+  }
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    letter-spacing: -0.005em;
     font-feature-settings: 'ss01', 'cv11';
   }
-  code, kbd, pre, .font-mono {
+  code, kbd, pre, samp, .font-mono {
+    font-family: var(--font-mono);
     font-feature-settings: 'zero', 'ss01';
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--ctp-surface1) transparent;
+    scrollbar-color: var(--line-2) transparent;
   }
 
   ::-webkit-scrollbar {
@@ -188,13 +269,13 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: var(--ctp-surface1);
+    background-color: var(--line-2);
     border-radius: 9999px;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--ctp-surface2);
+    background-color: var(--fg-4);
   }
   ::-webkit-scrollbar-corner {
     background: transparent;
@@ -202,79 +283,81 @@
 }
 
 @layer utilities {
-  .font-display {
-    font-family: var(--font-display);
-    letter-spacing: -0.01em;
-  }
-  /* The "banana" accent is the primary accent — now Catppuccin peach. Kept
-     as .bg-banana/.text-banana/etc. for backward compatibility with callsites
-     across the app. */
+  /* Banana-era aliases — map to the accent token so legacy callsites still
+     render in-palette while the migration is in progress. */
   .text-banana {
-    color: var(--ctp-peach);
+    color: var(--accent);
   }
   .bg-banana {
-    background-color: var(--ctp-peach);
+    background-color: var(--accent);
+  }
+  .bg-banana\/5 {
+    background-color: color-mix(in oklab, var(--accent) 5%, transparent);
   }
   .bg-banana\/10 {
-    background-color: color-mix(in oklab, var(--ctp-peach) 10%, transparent);
+    background-color: color-mix(in oklab, var(--accent) 10%, transparent);
   }
   .bg-banana\/20 {
-    background-color: color-mix(in oklab, var(--ctp-peach) 20%, transparent);
+    background-color: color-mix(in oklab, var(--accent) 20%, transparent);
   }
   .ring-banana {
-    --tw-ring-color: var(--ctp-peach);
+    --tw-ring-color: var(--accent);
   }
   .border-banana {
-    border-color: var(--ctp-peach);
+    border-color: var(--accent);
   }
-  @keyframes banana-pulse {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.7;
-      transform: scale(1.1);
-    }
+  .border-banana\/40 {
+    border-color: color-mix(in oklab, var(--accent) 40%, transparent);
   }
-  .animate-banana-pulse {
-    animation: banana-pulse 1.6s ease-in-out infinite;
+  .border-l-banana {
+    border-left-color: var(--accent);
+  }
+  .border-l-banana\/60 {
+    border-left-color: color-mix(in oklab, var(--accent) 60%, transparent);
   }
 
-  /* State colors — shared by state pills and progress indicators.
-     Values come from the Catppuccin palette so they theme-switch. */
+  @keyframes attention-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.65; transform: scale(1.1); }
+  }
+  .animate-attention-pulse,
+  .animate-banana-pulse {
+    animation: attention-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* State color tokens — used by state-pill and small status indicators.
+     Now sourced from the design's tag/state palette so they theme-switch. */
   .state-amber {
-    --state-fg: var(--ctp-peach);
-    --state-bg: color-mix(in oklab, var(--ctp-peach) 14%, transparent);
-    --state-border: color-mix(in oklab, var(--ctp-peach) 40%, transparent);
+    --state-fg: var(--tag-amber-fg);
+    --state-bg: var(--tag-amber-bg);
+    --state-border: color-mix(in oklab, var(--tag-amber-dot) 35%, transparent);
   }
   .state-violet {
-    --state-fg: var(--ctp-mauve);
-    --state-bg: color-mix(in oklab, var(--ctp-mauve) 14%, transparent);
-    --state-border: color-mix(in oklab, var(--ctp-mauve) 40%, transparent);
+    --state-fg: var(--tag-violet-fg);
+    --state-bg: var(--tag-violet-bg);
+    --state-border: color-mix(in oklab, var(--tag-violet-dot) 35%, transparent);
   }
   .state-blue {
-    --state-fg: var(--ctp-blue);
-    --state-bg: color-mix(in oklab, var(--ctp-blue) 14%, transparent);
-    --state-border: color-mix(in oklab, var(--ctp-blue) 40%, transparent);
+    --state-fg: var(--tag-blue-fg);
+    --state-bg: var(--tag-blue-bg);
+    --state-border: color-mix(in oklab, var(--tag-blue-dot) 35%, transparent);
   }
   .state-green {
-    --state-fg: var(--ctp-green);
-    --state-bg: color-mix(in oklab, var(--ctp-green) 14%, transparent);
-    --state-border: color-mix(in oklab, var(--ctp-green) 40%, transparent);
+    --state-fg: var(--tag-green-fg);
+    --state-bg: var(--tag-green-bg);
+    --state-border: color-mix(in oklab, var(--tag-green-dot) 35%, transparent);
   }
   .state-red {
-    --state-fg: var(--ctp-red);
-    --state-bg: color-mix(in oklab, var(--ctp-red) 18%, transparent);
-    --state-border: color-mix(in oklab, var(--ctp-red) 40%, transparent);
+    --state-fg: var(--tag-red-fg);
+    --state-bg: var(--tag-red-bg);
+    --state-border: color-mix(in oklab, var(--tag-red-dot) 35%, transparent);
   }
   .state-muted {
-    --state-fg: var(--muted-foreground);
+    --state-fg: var(--fg-3);
     --state-bg: transparent;
-    --state-border: var(--border);
+    --state-border: var(--line);
   }
 
-  /* Blinking streaming cursor used inside agent messages. */
   @keyframes cursor-blink {
     0%, 20% { opacity: 0.2; }
     50% { opacity: 1; }
@@ -284,27 +367,36 @@
     animation: cursor-blink 1s infinite;
   }
 
+  @keyframes status-spin {
+    to { transform: rotate(360deg); }
+  }
+  .animate-status-spin {
+    transform-origin: center;
+    animation: status-spin 2.4s linear infinite;
+  }
+
   /* Compact prose variant for inline agent messages. */
   .prose-agent {
-    --tw-prose-body: var(--foreground);
-    --tw-prose-headings: var(--foreground);
-    --tw-prose-links: var(--ctp-peach);
-    --tw-prose-bold: var(--foreground);
-    --tw-prose-code: var(--foreground);
-    --tw-prose-pre-code: var(--foreground);
-    --tw-prose-pre-bg: var(--muted);
-    --tw-prose-quotes: var(--muted-foreground);
-    --tw-prose-quote-borders: var(--border);
-    --tw-prose-hr: var(--border);
-    --tw-prose-bullets: var(--muted-foreground);
-    --tw-prose-counters: var(--muted-foreground);
+    --tw-prose-body: var(--fg);
+    --tw-prose-headings: var(--fg);
+    --tw-prose-links: var(--accent);
+    --tw-prose-bold: var(--fg);
+    --tw-prose-code: var(--fg);
+    --tw-prose-pre-code: var(--fg);
+    --tw-prose-pre-bg: var(--bg-3);
+    --tw-prose-quotes: var(--fg-3);
+    --tw-prose-quote-borders: var(--line);
+    --tw-prose-hr: var(--line);
+    --tw-prose-bullets: var(--fg-3);
+    --tw-prose-counters: var(--fg-3);
   }
   .prose-agent :where(code):not(:where([class~='not-prose'] *)) {
-    background: var(--muted);
+    background: var(--kbd-bg);
     padding: 0.12em 0.4em;
     border-radius: 0.35rem;
     font-size: 0.88em;
     font-weight: 500;
+    border: 1px solid var(--line);
   }
   .prose-agent :where(code):not(:where([class~='not-prose'] *))::before,
   .prose-agent :where(code):not(:where([class~='not-prose'] *))::after {
@@ -312,7 +404,7 @@
   }
   .prose-agent :where(pre):not(:where([class~='not-prose'] *)) {
     border-radius: 0.5rem;
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     padding: 0.75rem 0.9rem;
   }
   .prose-agent :where(p):not(:where([class~='not-prose'] *)) {

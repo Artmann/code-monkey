@@ -81,6 +81,6 @@ describe('TaskList', () => {
       />
     )
 
-    expect(screen.getByText(/waiting for input/i)).toBeInTheDocument()
+    expect(screen.getByText(/needs you/i)).toBeInTheDocument()
   })
 })

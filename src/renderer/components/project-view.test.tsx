@@ -43,9 +43,7 @@ describe('ProjectView', () => {
     renderProjectView(buildProject({ name: 'Hello' }))
 
     expect(await screen.findByText('Setup')).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: /hello/i })
-    ).toBeInTheDocument()
+    expect(screen.getByText('Hello')).toBeInTheDocument()
     expect(screen.getByText(/in progress/i)).toBeInTheDocument()
     expect(screen.getByText(/^todo$/i)).toBeInTheDocument()
     expect(screen.getByText(/^done$/i)).toBeInTheDocument()
