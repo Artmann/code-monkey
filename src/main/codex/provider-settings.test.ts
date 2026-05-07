@@ -1,4 +1,4 @@
-import { createClient } from '@libsql/client'
+import { createClient, type Client } from '@libsql/client'
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -35,7 +35,7 @@ const createFakeSafeStorage = (available = true): SafeStorageLike => ({
 
 const createTestDatabase = async (
   databaseFilePath: string
-): Promise<TestDatabase> => {
+): Promise<{ database: TestDatabase; client: Client }> => {
   const client = createClient({ url: `file:${databaseFilePath}` })
 
   await client.execute('PRAGMA foreign_keys = ON')
@@ -44,23 +44,43 @@ const createTestDatabase = async (
 
   await migrate(database, { migrationsFolder })
 
-  return database
+  return { database, client }
 }
 
 describe('provider-settings', () => {
   let database: TestDatabase
+  let client: Client
   let safeStorage: SafeStorageLike
   let temporaryDirectory: string
 
   beforeEach(async () => {
     temporaryDirectory = mkdtempSync(join(tmpdir(), 'code-monkey-test-'))
 
-    database = await createTestDatabase(join(temporaryDirectory, 'test.db'))
+    ;({ database, client } = await createTestDatabase(
+      join(temporaryDirectory, 'test.db')
+    ))
     safeStorage = createFakeSafeStorage()
   })
 
+  // The libsql native binding holds the sqlite file handle longer than the
+  // synchronous close() call admits to on Windows, so rmSync can race with the
+  // OS releasing the lock. Best-effort: close the client, retry the unlink,
+  // and swallow EPERM — the directory lives in OS tmp and is reaped anyway.
   afterEach(() => {
-    rmSync(temporaryDirectory, { recursive: true, force: true })
+    client.close()
+    try {
+      rmSync(temporaryDirectory, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 50
+      })
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'EPERM' && code !== 'EBUSY') {
+        throw error
+      }
+    }
   })
 
   test('returns null when nothing is configured', async () => {

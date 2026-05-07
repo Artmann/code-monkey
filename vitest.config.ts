@@ -1,9 +1,12 @@
-import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
+import { defineConfig, type Plugin } from 'vitest/config'
 
 export default defineConfig({
-  plugins: [react()],
+  // The top-level `vite` install resolves to a different copy than vitest's
+  // bundled vite, so plugin types collide structurally. Cast to the Plugin
+  // type vitest expects — the runtime shape is identical.
+  plugins: [react() as unknown as Plugin],
   test: {
     globals: true,
     environment: 'jsdom',
