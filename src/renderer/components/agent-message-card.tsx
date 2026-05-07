@@ -20,7 +20,11 @@ interface AgentMessageCardProps {
 // Re-render only when the markdown text actually changes, not on every parent
 // re-render. remark-gfm parsing is non-trivial; this matters for transcripts
 // with many messages.
-const MarkdownBody = memo(function MarkdownBody({ text }: { text: string }) {
+export const MarkdownBody = memo(function MarkdownBody({
+  text
+}: {
+  text: string
+}) {
   return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
 })
 
@@ -66,9 +70,9 @@ export function AgentMessageCard({
       transition={{ duration: 0.25, ease: 'easeOut' as const }}
       className={cn('group flex flex-col', className)}
     >
-      <div className="mb-1 flex items-baseline gap-2">
+      <div className="mb-1.5 flex items-baseline gap-2">
         <span className="text-[11.5px] font-medium text-[color:var(--fg-3)]">
-          Agent
+          agent
         </span>
         {time ? (
           <span className="font-mono text-[10.5px] text-[color:var(--fg-4)]">
@@ -77,15 +81,13 @@ export function AgentMessageCard({
         ) : null}
       </div>
 
-      <div className="prose prose-sm prose-agent max-w-none text-[13.5px] leading-[1.55] text-[color:var(--fg)] dark:prose-invert">
+      <div className="prose prose-sm prose-agent max-w-prose text-[13.5px] leading-[1.55] text-[color:var(--fg)] dark:prose-invert">
         <MarkdownBody text={text} />
         {streaming ? (
           <span
             aria-hidden="true"
-            className="ml-0.5 inline-block animate-cursor-blink text-[color:var(--accent)]"
-          >
-            ▍
-          </span>
+            className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] animate-cursor-blink bg-[color:var(--fg-2)] align-middle"
+          />
         ) : null}
       </div>
 

@@ -226,7 +226,7 @@ export function TabBar() {
             className={cn(
               'group flex min-w-0 cursor-pointer items-center gap-1.5 rounded-t-md border-b-2 px-2.5',
               isActive
-                ? 'border-[color:var(--accent)] bg-[color:var(--bg)] text-[color:var(--fg)]'
+                ? 'border-[color:var(--fg)] bg-[color:var(--bg)] text-[color:var(--fg)]'
                 : 'border-transparent bg-transparent text-[color:var(--fg-3)] hover:text-[color:var(--fg)]'
             )}
           >
@@ -252,7 +252,7 @@ export function TabBar() {
               <Loader2
                 aria-label="Working"
                 role="img"
-                className="size-3 shrink-0 animate-spin text-[color:var(--accent)]"
+                className="size-3 shrink-0 animate-spin text-[color:var(--fg-3)]"
               />
             ) : (
               <span

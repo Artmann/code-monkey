@@ -63,8 +63,8 @@ function PendingCard({ tool, summary, onDecide }: PendingProps) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-banana/50 bg-banana/5 px-4 py-3">
       <div className="flex items-baseline gap-2">
-        <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana">
-          Approval needed
+        <span className="text-[11.5px] font-medium text-[color:var(--fg)]">
+          approval needed
         </span>
         <span className="font-mono text-[11px] text-muted-foreground">
           {tool}

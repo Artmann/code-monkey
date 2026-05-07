@@ -56,13 +56,13 @@ const MODE_OPTIONS: ReadonlyArray<{
     value: 'code',
     label: 'Code',
     Icon: Code2,
-    hint: 'Agent reads and writes files'
+    hint: 'reads + writes files'
   },
   {
     value: 'plan',
     label: 'Plan',
     Icon: Map,
-    hint: 'Agent plans without executing tools'
+    hint: 'plans, no tools'
   }
 ]
 
@@ -96,7 +96,7 @@ const ModeToggle = ({
             className={cn(
               'inline-flex items-center gap-1 rounded-full px-2 py-[2px] text-[11.5px] font-medium transition-colors',
               isActive
-                ? 'bg-[color:var(--accent)] text-white shadow-[0_0_0_1px_var(--accent)]'
+                ? 'bg-[color:var(--fg)] text-[color:var(--bg)]'
                 : 'text-[color:var(--fg-2)] hover:text-[color:var(--fg)]',
               disabled && 'cursor-not-allowed opacity-60'
             )}
@@ -243,7 +243,7 @@ const Composer = ({
         // cleanly without React fighting the contenteditable DOM state.
         key={threadId}
         ariaLabel="Message composer"
-        placeholder="Tell the agent what to do…"
+        placeholder="what should the agent do?"
         initialText={text}
         disabled={disabled}
         onChange={handleComposerChange}
@@ -334,7 +334,7 @@ const TranscriptScrollArea = ({
         ref={scrollRef}
         className="absolute inset-0 overflow-y-auto"
       >
-        <div className="mx-auto flex max-w-[760px] flex-col gap-3 px-6 py-5">
+        <div className="mx-auto flex max-w-[760px] flex-col gap-3 py-5">
           <ApprovalActionsProvider value={onApprovalDecision ?? null}>
             <UserInputActionsProvider value={onUserInputDecision ?? null}>
               <AgentTranscript
@@ -414,10 +414,10 @@ export function AgentPane({
       />
 
       {!providerConfigured && (
-        <p className="mx-auto w-full max-w-[760px] shrink-0 px-6 pb-1 text-[12px] text-[color:var(--accent)]">
+        <p className="mx-auto w-full max-w-[760px] shrink-0 px-6 pb-1 text-[12px] text-[color:var(--fg-3)]">
           <Link
             to="/settings"
-            className="underline"
+            className="underline decoration-[color:var(--fg-4)] underline-offset-2 hover:text-[color:var(--fg)]"
           >
             Configure an agent provider
           </Link>{' '}

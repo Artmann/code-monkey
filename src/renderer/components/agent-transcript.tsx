@@ -6,23 +6,19 @@ import {
   FileEdit,
   FilePlus,
   FileText,
-  Loader2,
   Terminal
 } from 'lucide-react'
 import {
   createContext,
-  memo,
   useContext,
   useMemo,
   useState,
   type ReactNode
 } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 
 import type { Thread, ThreadEvent } from '../hooks/use-thread'
 import { cn } from '../lib/utils'
-import { AgentMessageCard } from './agent-message-card'
+import { AgentMessageCard, MarkdownBody } from './agent-message-card'
 import { ApprovalCard } from './approval-card'
 import { UserInputCard, type UserInputQuestion } from './user-input-card'
 
@@ -559,9 +555,7 @@ function buildNodes(events: ThreadEvent[]): RenderNode[] {
 }
 
 export function AgentTranscript({
-  events,
-  thread = null,
-  cancelRequested = false
+  events
 }: {
   events: ThreadEvent[]
   thread?: Thread | null
@@ -582,22 +576,18 @@ export function AgentTranscript({
     () => new Set(nodes.map((node) => node.id))
   )
 
-  const serverRunning =
-    thread?.status === 'running' || thread?.status === 'starting'
-  const running = serverRunning && !cancelRequested
-
   if (events.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-10">
         <p className="text-xs text-muted-foreground">
-          No output yet. The agent hasn&apos;t said anything.
+          quiet here. tell the agent what to do.
         </p>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-5">
       <AnimatePresence initial={false}>
         {nodes.map((node) => (
           <RenderedNode
@@ -607,8 +597,6 @@ export function AgentTranscript({
           />
         ))}
       </AnimatePresence>
-
-      {running ? <RunningRow /> : null}
     </div>
   )
 }
@@ -683,16 +671,18 @@ function UserInputNode({
 
 function PlanProposedRow({ plan }: { plan: string }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-banana/40 bg-banana/5 px-4 py-3">
-      <div className="font-display text-[10.5px] font-semibold uppercase tracking-[0.16em] text-banana">
-        Plan proposed
+    <div className="flex flex-col">
+      <div className="mb-1.5 flex items-baseline gap-2">
+        <span className="text-[11.5px] font-medium text-[color:var(--fg-3)]">
+          plan
+        </span>
       </div>
       {plan.trim() === '' ? (
-        <div className="font-mono text-[11.5px] text-muted-foreground">
+        <div className="font-mono text-[11.5px] text-[color:var(--fg-4)]">
           (empty plan)
         </div>
       ) : (
-        <div className="prose prose-sm max-w-none whitespace-pre-wrap break-words font-mono text-[12.5px]">
+        <div className="prose prose-sm prose-agent max-w-prose text-[13.5px] leading-[1.55] text-[color:var(--fg)] dark:prose-invert">
           <MarkdownBody text={plan} />
         </div>
       )}
@@ -731,6 +721,7 @@ function ApprovalNode({
 
 function UserMessageCard({
   text,
+  timestamp,
   animateIn
 }: {
   text: string
@@ -742,23 +733,25 @@ function UserMessageCard({
       initial={animateIn ? { opacity: 0, y: 4 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="flex justify-end"
+      className="flex flex-col"
     >
-      <div className="max-w-[78%] rounded-[14px] rounded-br-[4px] bg-[color:var(--bg-3)] px-3 py-2">
-        <div className="prose prose-sm max-w-none text-[13.5px] leading-[1.5] text-[color:var(--fg)] dark:prose-invert">
-          <MarkdownBody text={text} />
-        </div>
+      <div className="mb-1.5 flex items-baseline gap-2">
+        <span className="text-[11.5px] font-medium text-[color:var(--fg-3)]">
+          you
+        </span>
+        {timestamp ? (
+          <span className="font-mono text-[10.5px] text-[color:var(--fg-4)]">
+            {timestamp}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="prose prose-sm prose-agent max-w-prose text-[13.5px] leading-[1.55] text-[color:var(--fg)] dark:prose-invert">
+        <MarkdownBody text={text} />
       </div>
     </motion.div>
   )
 }
-
-// react-markdown re-parses its children prop on every render. Memoising by
-// text means stable transcript bodies don't re-run the markdown pipeline
-// (with remark-gfm) when an unrelated parent state change forces a re-render.
-const MarkdownBody = memo(function MarkdownBody({ text }: { text: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-})
 
 function SystemRow({ children }: { children: ReactNode }) {
   return (
@@ -842,13 +835,15 @@ function ActivityStrip({
         <span
           aria-hidden="true"
           className={cn(
-            'h-3.5 w-[2px] shrink-0 rounded-[1px] bg-[color:var(--accent)]',
-            running && 'animate-attention-pulse'
+            'h-3.5 w-[2px] shrink-0 rounded-[1px]',
+            running
+              ? 'animate-attention-pulse bg-[color:var(--fg-2)]'
+              : 'bg-[color:var(--fg-4)]'
           )}
         />
 
         <span className="font-mono text-[11.5px] text-[color:var(--fg)]">
-          {running ? 'Working' : 'Activity'}
+          {running ? 'working' : 'activity'}
         </span>
         <span className="text-[color:var(--fg-4)]">·</span>
         <span className="shrink-0 text-[color:var(--fg-3)]">
@@ -874,7 +869,12 @@ function ActivityStrip({
         )}
 
         <span className="ml-2 inline-flex items-center gap-1">
-          {steps.slice(0, 6).map((step) => {
+          {steps.length > 6 ? (
+            <span className="font-mono text-[10.5px] text-[color:var(--fg-4)]">
+              +{steps.length - 6}
+            </span>
+          ) : null}
+          {steps.slice(-6).map((step) => {
             const Icon = toolIconFor(step.tool)
             return (
               <span
@@ -1002,21 +1002,3 @@ function ErrorRow({ message }: { message: string }) {
   )
 }
 
-function RunningRow() {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="flex items-center gap-3 rounded-lg border bg-card px-3.5 py-2.5"
-    >
-      <Loader2
-        aria-hidden="true"
-        className="size-3.5 animate-spin text-banana"
-      />
-      <span className="text-sm font-medium">Working…</span>
-      <span className="ml-auto font-mono text-[11px] text-muted-foreground">
-        live
-      </span>
-    </motion.div>
-  )
-}
