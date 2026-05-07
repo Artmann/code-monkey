@@ -17,8 +17,14 @@ import {
   useUpdateThreadMutation,
   type Thread
 } from '../hooks/use-thread'
+import {
+  useUpdateWorkspaceMutation,
+  useWorkspacesQuery,
+  type Workspace
+} from '../hooks/use-workspace'
 import { cn } from '../lib/utils'
 import { WindowControls } from './window-controls'
+import { WorkspaceSwitcher } from './workspace-switcher'
 
 // `WebkitAppRegion` is an Electron-specific CSS property; React's CSSProperties
 // type doesn't know about it, so we cast through here to keep the call sites
@@ -113,8 +119,10 @@ function TabLabel({
 export function TabBar() {
   const navigate = useNavigate()
   const threadsQuery = useThreadsQuery()
+  const workspacesQuery = useWorkspacesQuery()
   const createThread = useCreateThreadMutation()
   const updateThread = useUpdateThreadMutation()
+  const updateWorkspace = useUpdateWorkspaceMutation()
   const closeThread = useCloseThreadMutation()
   const cancelThread = useCancelThreadMutation()
   const startNewTab = useNewTab()
@@ -125,9 +133,17 @@ export function TabBar() {
   const threadMatch = useMatch('/threads/:threadId')
   const settingsMatch = useMatch('/settings')
 
-  const threads = threadsQuery.data ?? []
+  const allThreads = threadsQuery.data ?? []
+  const activeWorkspaceId = workspacesQuery.data?.activeWorkspaceId ?? null
+  const threads = activeWorkspaceId
+    ? allThreads.filter((thread) => thread.workspaceId === activeWorkspaceId)
+    : allThreads
   const activeThreadId = threadMatch?.params.threadId ?? null
   const isSettingsActive = settingsMatch !== null
+  const activeWorkspace =
+    workspacesQuery.data?.workspaces.find(
+      (workspace) => workspace.id === activeWorkspaceId
+    ) ?? null
 
   useEffect(() => {
     const dispose = window.codeMonkey.onNewTabRequested(() => {
@@ -137,6 +153,48 @@ export function TabBar() {
     return dispose
   }, [startNewTab])
 
+  // Mirror the URL-driven active tab into the workspace's persisted
+  // last-active pointer, so reopening the app or returning from another
+  // workspace lands on the right tab. Depend on the cached query data
+  // directly so the effect doesn't re-fire on every render from a
+  // freshly-derived `threads` array.
+  useEffect(() => {
+    if (!activeWorkspace || !activeThreadId) {
+      return
+    }
+
+    const stillOpen = (threadsQuery.data ?? []).some(
+      (thread) =>
+        thread.id === activeThreadId &&
+        thread.workspaceId === activeWorkspace.id
+    )
+
+    if (!stillOpen) {
+      return
+    }
+
+    if (activeWorkspace.lastActiveThreadId === activeThreadId) {
+      return
+    }
+
+    updateWorkspace.mutate({
+      workspaceId: activeWorkspace.id,
+      lastActiveThreadId: activeThreadId
+    })
+  }, [activeThreadId, activeWorkspace, threadsQuery.data, updateWorkspace])
+
+  const onSwitchWorkspace = (target: Workspace) => {
+    const targetThreads = allThreads.filter(
+      (thread) => thread.workspaceId === target.id
+    )
+    const restored = target.lastActiveThreadId
+      ? targetThreads.find((thread) => thread.id === target.lastActiveThreadId)
+      : null
+    const next = restored ?? targetThreads[0] ?? null
+
+    navigate(next ? `/threads/${next.id}` : '/')
+  }
+
   const onClose = async (thread: Thread) => {
     await closeThread.mutateAsync(thread.id)
 
@@ -145,8 +203,11 @@ export function TabBar() {
     }
 
     const refreshed = await threadsQuery.refetch()
-    const remaining = refreshed.data ?? []
-    const next = remaining.find((entry) => entry.id !== thread.id)
+    const remaining = (refreshed.data ?? []).filter(
+      (entry) =>
+        entry.id !== thread.id && entry.workspaceId === thread.workspaceId
+    )
+    const next = remaining[0] ?? null
 
     navigate(next ? `/threads/${next.id}` : '/')
   }
@@ -215,6 +276,16 @@ export function TabBar() {
       )}
       style={dragRegion}
     >
+      <WorkspaceSwitcher
+        noDragRegion={noDragRegion}
+        onSwitchWorkspace={onSwitchWorkspace}
+      />
+
+      <div
+        aria-hidden="true"
+        className="mx-1 my-2 w-px self-stretch bg-[color:var(--line)]"
+      />
+
       {threads.map((thread) => {
         const isActive = thread.id === activeThreadId
 

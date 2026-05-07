@@ -9,6 +9,7 @@ import {
 
 const buildThread = (partial: Partial<Thread> = {}): Thread => ({
   id: 't',
+  workspaceId: 'workspace-default',
   name: 'thread',
   directoryPath: '/tmp/repo',
   provider: null,

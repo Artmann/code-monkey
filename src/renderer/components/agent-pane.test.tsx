@@ -8,6 +8,7 @@ import { AgentPane } from './agent-pane'
 
 const buildThread = (overrides: Partial<Thread> = {}): Thread => ({
   id: 'thread-test',
+  workspaceId: 'workspace-default',
   name: 'project',
   directoryPath: '/tmp/project',
   provider: 'claude-code',

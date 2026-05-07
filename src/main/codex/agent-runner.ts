@@ -49,6 +49,7 @@ export type AgentRunnerDependencies = {
 export type CreateThreadInput = {
   directoryPath: string
   name?: string
+  workspaceId: string
 }
 
 export type AgentRunner = {
@@ -354,6 +355,7 @@ export const createAgentRunner = (
       .insert(schema.threads)
       .values({
         name,
+        workspaceId: input.workspaceId,
         directoryPath: input.directoryPath,
         status: 'idle',
         tabOrder,

@@ -26,10 +26,25 @@ export const settings = sqliteTable('settings', {
     .$defaultFn(() => new Date())
 })
 
+export const workspaces = sqliteTable('workspaces', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => randomUUID()),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  lastActiveThreadId: text('last_active_thread_id'),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date())
+})
+
 export const threads = sqliteTable('threads', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => randomUUID()),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id, { onDelete: 'restrict' }),
   name: text('name').notNull(),
   directoryPath: text('directory_path').notNull(),
   provider: text('provider', { enum: providerKindValues }),
@@ -74,6 +89,8 @@ export const threadEvents = sqliteTable(
 
 export type Setting = typeof settings.$inferSelect
 export type NewSetting = typeof settings.$inferInsert
+export type Workspace = typeof workspaces.$inferSelect
+export type NewWorkspace = typeof workspaces.$inferInsert
 export type Thread = typeof threads.$inferSelect
 export type NewThread = typeof threads.$inferInsert
 export type ThreadEvent = typeof threadEvents.$inferSelect

@@ -3,6 +3,7 @@ import { useMatch, useNavigate } from 'react-router-dom'
 
 import { useNewTab } from './use-new-tab'
 import { useCloseThreadMutation, useThreadsQuery } from './use-thread'
+import { useWorkspacesQuery } from './use-workspace'
 
 // The OS application menu is removed entirely (see main.ts). These shortcuts
 // re-implement the accelerators that previously lived under File / View, plus
@@ -12,9 +13,11 @@ export function useAppShortcuts(): void {
   const startNewTab = useNewTab()
   const closeThread = useCloseThreadMutation()
   const threadsQuery = useThreadsQuery()
+  const workspacesQuery = useWorkspacesQuery()
 
   const threadMatch = useMatch('/threads/:threadId')
   const activeThreadId = threadMatch?.params.threadId ?? null
+  const activeWorkspaceId = workspacesQuery.data?.activeWorkspaceId ?? null
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -43,9 +46,15 @@ export function useAppShortcuts(): void {
       // TabBar renders them, so threads[index - 1] maps to the tab visually
       // at position N. Cmd/Ctrl+9 conventionally jumps to the *last* tab in
       // most browsers; we fall back to that here too — handy when the user
-      // has more than 9 tabs open.
+      // has more than 9 tabs open. Scope to the active workspace's tabs so
+      // the shortcut targets what the user actually sees.
       if (!event.shiftKey && /^[1-9]$/.test(key)) {
-        const threads = threadsQuery.data ?? []
+        const allThreads = threadsQuery.data ?? []
+        const threads = activeWorkspaceId
+          ? allThreads.filter(
+              (thread) => thread.workspaceId === activeWorkspaceId
+            )
+          : allThreads
 
         if (threads.length === 0) {
           return
@@ -106,5 +115,12 @@ export function useAppShortcuts(): void {
     return () => {
       window.removeEventListener('keydown', handler)
     }
-  }, [activeThreadId, closeThread, navigate, startNewTab, threadsQuery])
+  }, [
+    activeThreadId,
+    activeWorkspaceId,
+    closeThread,
+    navigate,
+    startNewTab,
+    threadsQuery
+  ])
 }

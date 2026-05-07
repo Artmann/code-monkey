@@ -12,6 +12,7 @@ import type { SafeStorageLike } from '../codex/provider-settings'
 import * as schema from '../database/schema'
 import { createSettingsRoutes } from './routes/settings'
 import { createThreadsRoutes } from './routes/threads'
+import { createWorkspacesRoutes } from './routes/workspaces'
 
 export type ApiServerDependencies = {
   database: LibSQLDatabase<typeof schema>
@@ -41,6 +42,7 @@ export async function startApiServer(
 
   app.get('/health', (context) => context.json({ ok: true }))
   app.route('/settings', createSettingsRoutes(dependencies))
+  app.route('/workspaces', createWorkspacesRoutes(dependencies))
   app.route('/', createThreadsRoutes(dependencies))
 
   app.onError((error, context) => {

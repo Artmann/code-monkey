@@ -7,6 +7,7 @@ import { z } from 'zod'
 
 import type { AgentRunner, PersistedEvent } from '../../codex/agent-runner'
 import type { EventBroker } from '../../codex/event-broker'
+import { getActiveWorkspaceId } from '../../database/active-workspace'
 import * as schema from '../../database/schema'
 
 // Event types that signal "the agent is waiting on the user". We pair each
@@ -34,7 +35,8 @@ const messageSchema = z.object({
 const createThreadSchema = z.object({
   directoryPath: z.string().min(1),
   name: z.string().min(1).max(200).optional(),
-  initialMessage: z.string().min(1).max(20_000).optional()
+  initialMessage: z.string().min(1).max(20_000).optional(),
+  workspaceId: z.string().min(1).optional()
 })
 
 const updateThreadSchema = z.object({
@@ -189,9 +191,13 @@ export const createThreadsRoutes = (
       const body = context.req.valid('json')
 
       try {
+        const workspaceId =
+          body.workspaceId ?? (await getActiveWorkspaceId(database))
+
         const thread = await runner.createThread({
           directoryPath: body.directoryPath,
-          name: body.name
+          name: body.name,
+          workspaceId
         })
 
         if (body.initialMessage) {

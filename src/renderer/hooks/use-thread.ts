@@ -8,6 +8,7 @@ export type ThreadStatus = 'starting' | 'running' | 'idle' | 'done' | 'error'
 
 export type Thread = {
   id: string
+  workspaceId: string
   name: string
   directoryPath: string
   provider: string | null
@@ -316,6 +317,7 @@ type CreateThreadInput = {
   directoryPath: string
   name?: string
   initialMessage?: string
+  workspaceId?: string
 }
 
 type ThreadResponseEnvelope = { thread: Thread }
