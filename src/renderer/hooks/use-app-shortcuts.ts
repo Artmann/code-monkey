@@ -3,7 +3,10 @@ import { useMatch, useNavigate } from 'react-router-dom'
 
 import { useNewTab } from './use-new-tab'
 import { useCloseThreadMutation, useThreadsQuery } from './use-thread'
-import { useWorkspacesQuery } from './use-workspace'
+import {
+  useSetActiveWorkspaceMutation,
+  useWorkspacesQuery
+} from './use-workspace'
 
 // The OS application menu is removed entirely (see main.ts). These shortcuts
 // re-implement the accelerators that previously lived under File / View, plus
@@ -14,6 +17,7 @@ export function useAppShortcuts(): void {
   const closeThread = useCloseThreadMutation()
   const threadsQuery = useThreadsQuery()
   const workspacesQuery = useWorkspacesQuery()
+  const setActiveWorkspace = useSetActiveWorkspaceMutation()
 
   const threadMatch = useMatch('/threads/:threadId')
   const activeThreadId = threadMatch?.params.threadId ?? null
@@ -38,6 +42,55 @@ export function useAppShortcuts(): void {
       if (key === 't' && !event.shiftKey) {
         event.preventDefault()
         void startNewTab()
+        return
+      }
+
+      // Cmd/Ctrl+Shift+1..9 — jump directly to the Nth workspace, mirroring
+      // the Cmd/Ctrl+1..9 = Nth tab shortcut. Cmd/Ctrl+Shift+9 falls back to
+      // the *last* workspace when the user has more than 9, matching the tab
+      // shortcut's behaviour. Match against `event.code` because Shift turns
+      // the digit row into symbols (! @ # ...) on most layouts.
+      const shiftedDigitMatch = event.shiftKey
+        ? /^Digit([1-9])$/.exec(event.code)
+        : null
+
+      if (shiftedDigitMatch) {
+        const workspaces = workspacesQuery.data?.workspaces ?? []
+
+        if (workspaces.length === 0) {
+          return
+        }
+
+        event.preventDefault()
+
+        const numeric = Number(shiftedDigitMatch[1])
+        const target =
+          numeric === 9 ? workspaces[workspaces.length - 1] : workspaces[numeric - 1]
+
+        if (!target || target.id === activeWorkspaceId) {
+          return
+        }
+
+        void (async () => {
+          await setActiveWorkspace.mutateAsync(target.id)
+
+          // Restore the workspace's last active thread, mirroring
+          // TabBar.onSwitchWorkspace so keyboard and mouse switches land on
+          // the same tab.
+          const allThreads = threadsQuery.data ?? []
+          const targetThreads = allThreads.filter(
+            (thread) => thread.workspaceId === target.id
+          )
+          const restored = target.lastActiveThreadId
+            ? targetThreads.find(
+                (thread) => thread.id === target.lastActiveThreadId
+              )
+            : null
+          const next = restored ?? targetThreads[0] ?? null
+
+          navigate(next ? `/threads/${next.id}` : '/')
+        })()
+
         return
       }
 
@@ -120,7 +173,9 @@ export function useAppShortcuts(): void {
     activeWorkspaceId,
     closeThread,
     navigate,
+    setActiveWorkspace,
     startNewTab,
-    threadsQuery
+    threadsQuery,
+    workspacesQuery
   ])
 }
